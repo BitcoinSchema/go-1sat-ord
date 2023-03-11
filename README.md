@@ -14,12 +14,12 @@ github.com/libsv/go-bt/v2
 
 ```go
 import (
-  github.com/bitcoinschema/go-ordinals
+  github.com/bitcoinschema/go-1sat-ord
 )
 // utxos available to use for transaction fee, and source of the 1sat ordinal
 var utxos []*bitcoin.Utxo
-// a B object with the content to be inscribed
-var data  *b.B
+// opReturn array to be inscribed. will be prefixed with ord inscription identifier "ord"
+var opReturn bitcoin.OpReturnData
 // a privat key in wif format for signing the utxos and funding the tx
 var purseWif string
 // address to return remaining funds after fees and 1sat
@@ -27,7 +27,7 @@ var changeAddress string
 // destination address - will recieve the 1sat ordinal
 var ordinalAddress string
 
-ordinals.Inscribe(utxos, data, purseWif, changeAddress, ordinalAddress, signingAddress, signingKey) (inscription *Inscription, tx *bt.Tx, err error) {
+ordinals.Inscribe(utxos, opReturn, purseWif, changeAddress, ordinalAddress, signingAddress, signingKey) (inscription *Inscription, tx *bt.Tx, err error) {
 
 }
 ```

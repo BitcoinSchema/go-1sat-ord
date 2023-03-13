@@ -14,16 +14,10 @@ type InscriptionID struct {
 	Index uint32
 }
 
+// Ordinal is the ordinal inscription data
 type Ordinal struct {
 	Data        []byte
 	ContentType string
-}
-
-// BITCOIN SCHEMA - ORDINALS
-// `ORD | B | MAP type post`
-
-type Inscription struct {
-	InscriptionId InscriptionID `json:"inscriptionId"`
 }
 
 // ORD is the inscription protocol prefix
@@ -37,14 +31,14 @@ const Prefix = "ord"
 // tokenAddress - where to recieve the ordinal
 // signingAddress - key to use when signing the inscription data
 // signingKey - private key to use for signing inscription data
-func Inscribe(utxos []*bitcoin.Utxo, inscriptionData *Ordinal, opReturn bitcoin.OpReturnData, pursePk *bec.PrivateKey, changeAddress string, tokenAddress string, signingAddress *string, signingKey *string) (inscription *Inscription, tx *bt.Tx, err error) {
+func Inscribe(utxos []*bitcoin.Utxo, inscriptionData *Ordinal, opReturn bitcoin.OpReturnData, pursePk *bec.PrivateKey, changeAddress string, tokenAddress string, signingAddress *string, signingKey *string) (tx *bt.Tx, err error) {
 
 	payToAddresses := []*bitcoin.PayToAddress{{Address: tokenAddress, Satoshis: 1}}
 
 	// Sign with AIP
 	_, outData, _, err := aip.SignOpReturnData(*signingKey, "BITCOIN_ECDSA", opReturn)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Create ASM from data
@@ -56,14 +50,9 @@ func Inscribe(utxos []*bitcoin.Utxo, inscriptionData *Ordinal, opReturn bitcoin.
 	// Create Inscription Tx
 	tx, err = CreateTxWithChange(utxos, payToAddresses, inscriptionData, &opReturnAsm, changeAddress, nil, nil, pursePk, true)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// how to figure out which ordinal number this new thing is?
-	return &Inscription{
-		InscriptionId: InscriptionID{
-			TxID:  tx.TxID(),
-			Index: 0,
-		},
-	}, tx, nil
+	return tx, nil
 }

@@ -10,7 +10,7 @@ require (
 
 require (
 	github.com/bitcoinschema/go-aip v0.1.9
-	github.com/bitcoinschema/go-b v0.0.17
+	github.com/bitcoinschema/go-b v0.0.17 // indirect
 	github.com/bitcoinschema/go-bitcoin/v2 v2.0.3
 	github.com/bitcoinschema/go-bmap v0.0.36
 	github.com/bitcoinschema/go-bob v0.3.3 // indirect

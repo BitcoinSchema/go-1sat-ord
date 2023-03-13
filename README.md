@@ -21,7 +21,8 @@ var changeAddress string
 // destination address - will recieve the 1sat ordinal
 var ordinalAddress string
 
-ordinals.Inscribe(utxos, inscriptionData, opReturn, purseWif, changeAddress, ordinalAddress, signingAddress, signingKey) (inscription *Inscription, tx *bt.Tx, err error) {
+tx, err := ordinals.Inscribe(utxos, inscriptionData, opReturn, purseWif, changeAddress, ordinalAddress, signingAddress, signingKey)
 
-}
+// tx is a *bt.Tx from bsvlib/go-bt
+// tx.TxID()
 ```

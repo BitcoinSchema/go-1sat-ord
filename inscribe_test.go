@@ -107,7 +107,7 @@ func TestInscription(t *testing.T) {
 		[]byte("geohash"),
 		[]byte("dhxnd1pwn"),
 	}
-	inscription, tx, err := Inscribe(inscribeUtxos, inscriptionData, opReturn, paymentPk, changeAddress, ordinalAddress, &signingAddress, &signingKey)
+	tx, err := Inscribe(inscribeUtxos, inscriptionData, opReturn, paymentPk, changeAddress, ordinalAddress, &signingAddress, &signingKey)
 	if err != nil {
 		t.Fatalf("Inscription failed %s", err)
 	}
@@ -119,7 +119,7 @@ func TestInscription(t *testing.T) {
 		t.Fatalf("error %s", err)
 	}
 	if len(bmapTx.Ord) != 1 {
-		t.Fatalf("tx %+v, inscription: %+v, bmapTx: %+v", tx, inscription, bmapTx)
+		t.Fatalf("tx %+v, bmapTx: %+v", tx, bmapTx)
 	}
 	t.Fatalf("%s", rawTx)
 

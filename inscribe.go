@@ -1,6 +1,8 @@
 package ordinals
 
 import (
+	"encoding/hex"
+
 	"github.com/bitcoinschema/go-aip"
 	"github.com/bitcoinschema/go-bitcoin/v2"
 	"github.com/libsv/go-bk/bec"
@@ -12,8 +14,13 @@ type InscriptionID struct {
 	Index uint32
 }
 
+type Ordinal struct {
+	Data        []byte
+	ContentType string
+}
+
 // BITCOIN SCHEMA - ORDINALS
-// `ORD | B | MAP type ord`
+// `ORD | B | MAP type post`
 
 type Inscription struct {
 	InscriptionId InscriptionID `json:"inscriptionId"`
@@ -30,16 +37,9 @@ const Prefix = "ord"
 // tokenAddress - where to recieve the ordinal
 // signingAddress - key to use when signing the inscription data
 // signingKey - private key to use for signing inscription data
-func Inscribe(utxos []*bitcoin.Utxo, opReturn bitcoin.OpReturnData, pursePk *bec.PrivateKey, changeAddress string, tokenAddress string, signingAddress *string, signingKey *string) (inscription *Inscription, tx *bt.Tx, err error) {
+func Inscribe(utxos []*bitcoin.Utxo, inscriptionData *Ordinal, opReturn bitcoin.OpReturnData, pursePk *bec.PrivateKey, changeAddress string, tokenAddress string, signingAddress *string, signingKey *string) (inscription *Inscription, tx *bt.Tx, err error) {
 
 	payToAddresses := []*bitcoin.PayToAddress{{Address: tokenAddress, Satoshis: 1}}
-
-	prepend := bitcoin.OpReturnData{
-		[]byte(Prefix),
-		[]byte("|"),
-	}
-
-	opReturn = append(prepend, opReturn...)
 
 	// Sign with AIP
 	_, outData, _, err := aip.SignOpReturnData(*signingKey, "BITCOIN_ECDSA", opReturn)
@@ -47,8 +47,14 @@ func Inscribe(utxos []*bitcoin.Utxo, opReturn bitcoin.OpReturnData, pursePk *bec
 		return nil, nil, err
 	}
 
+	// Create ASM from data
+	var opReturnAsm string
+	for _, push := range outData {
+		pushHex := hex.EncodeToString(push)
+		opReturnAsm = opReturnAsm + " " + pushHex
+	}
 	// Create Inscription Tx
-	tx, err = CreateTxWithChange(utxos, payToAddresses, []bitcoin.OpReturnData{outData}, changeAddress, nil, nil, pursePk, true)
+	tx, err = CreateTxWithChange(utxos, payToAddresses, inscriptionData, &opReturnAsm, changeAddress, nil, nil, pursePk, true)
 	if err != nil {
 		return nil, nil, err
 	}

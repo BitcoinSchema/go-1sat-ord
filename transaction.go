@@ -2,6 +2,7 @@ package ordinals
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/bitcoinschema/go-bitcoin/v2"
@@ -23,8 +24,8 @@ func (a *account) Unlocker(context.Context, *bscript.Script) (bt.Unlocker, error
 	}, nil
 }
 
-func CreateTx(utxos []*bitcoin.Utxo, addresses []*bitcoin.PayToAddress,
-	opReturns []bitcoin.OpReturnData, privateKey *bec.PrivateKey, ordinal bool) (*bt.Tx, error) {
+func CreateTx(utxos []*bitcoin.Utxo, addresses []*bitcoin.PayToAddress, inscriptionData *Ordinal,
+	opReturnAsm *string, privateKey *bec.PrivateKey) (*bt.Tx, error) {
 
 	// Start creating a new transaction
 	tx := bt.NewTx()
@@ -41,8 +42,7 @@ func CreateTx(utxos []*bitcoin.Utxo, addresses []*bitcoin.PayToAddress,
 		totalSatoshis += utxo.Satoshis
 	}
 
-	ordIdx := 0
-	// Loop any pay addresses
+	// Loop any pay to addresses
 	for _, address := range addresses {
 		var a *bscript.Script
 		a, err = bscript.NewP2PKHFromAddress(address.Address)
@@ -51,15 +51,23 @@ func CreateTx(utxos []*bitcoin.Utxo, addresses []*bitcoin.PayToAddress,
 		}
 
 		// Handle Ordinals
-		if address.Satoshis == 1 && ordinal {
+		if address.Satoshis == 1 && inscriptionData != nil {
 			// 1sat ordinals prefix "1sat"
-			ordPrefix := "31736174 OP_DROP"
+
+			inscriptionHex := hex.EncodeToString(inscriptionData.Data)
+			inscriptionContentTypeHex := hex.EncodeToString([]byte(inscriptionData.ContentType))
+			ordHex := hex.EncodeToString([]byte("ord"))
+
+			ordAsm := "OP_FALSE OP_IF " + ordHex + " OP_0 " + inscriptionHex + " OP_1 " + inscriptionContentTypeHex + " OP_ENDIF"
+			if opReturnAsm != nil {
+				ordAsm = ordAsm + " OP_RETURN " + *opReturnAsm
+			}
 			aAsm, err := a.ToASM()
 			if err != nil {
 				return nil, err
 			}
 			// 1sat OP_DROP P2PKH
-			newAsm := ordPrefix + " " + aAsm
+			newAsm := aAsm + " " + ordAsm
 			newA, err := bscript.NewFromASM(newAsm)
 			if err != nil {
 				return nil, err
@@ -70,11 +78,6 @@ func CreateTx(utxos []*bitcoin.Utxo, addresses []*bitcoin.PayToAddress,
 			Satoshis:      address.Satoshis,
 			LockingScript: a,
 		})
-		if address.Satoshis == 1 && ordinal {
-			if err = tx.AddOpReturnPartsOutput(opReturns[ordIdx]); err != nil {
-				return nil, err
-			}
-		}
 	}
 
 	// If inputs are supplied, make sure they are sufficient for this transaction
@@ -100,7 +103,7 @@ func CreateTx(utxos []*bitcoin.Utxo, addresses []*bitcoin.PayToAddress,
 	return tx, nil
 }
 
-func CreateTxWithChange(utxos []*bitcoin.Utxo, payToAddresses []*bitcoin.PayToAddress, opReturns []bitcoin.OpReturnData,
+func CreateTxWithChange(utxos []*bitcoin.Utxo, payToAddresses []*bitcoin.PayToAddress, inscriptionData *Ordinal, opReturnAsm *string,
 	changeAddress string, standardRate, dataRate *bt.Fee,
 	privateKey *bec.PrivateKey, sendingOrdinal bool) (*bt.Tx, error) {
 
@@ -147,7 +150,7 @@ func CreateTxWithChange(utxos []*bitcoin.Utxo, payToAddresses []*bitcoin.PayToAd
 	}
 
 	// Create the "Draft tx"
-	fee, err := draftTx(utxos, payToAddresses, opReturns, privateKey, standardRate, dataRate, sendingOrdinal)
+	fee, err := draftTx(utxos, payToAddresses, inscriptionData, opReturnAsm, privateKey, standardRate, dataRate)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +165,7 @@ func CreateTxWithChange(utxos []*bitcoin.Utxo, payToAddresses []*bitcoin.PayToAd
 
 		// Re-run draft tx with no change address
 		if fee, err = draftTx(
-			utxos, payToAddresses, opReturns, privateKey, standardRate, dataRate, sendingOrdinal,
+			utxos, payToAddresses, inscriptionData, opReturnAsm, privateKey, standardRate, dataRate,
 		); err != nil {
 			return nil, err
 		}
@@ -209,15 +212,15 @@ func CreateTxWithChange(utxos []*bitcoin.Utxo, payToAddresses []*bitcoin.PayToAd
 	}
 
 	// Create the "Final tx" (or error)
-	return CreateTx(utxos, payToAddresses, opReturns, privateKey, sendingOrdinal)
+	return CreateTx(utxos, payToAddresses, inscriptionData, opReturnAsm, privateKey)
 }
 
 // draftTx is a helper method to create a draft tx and associated fees
-func draftTx(utxos []*bitcoin.Utxo, payToAddresses []*bitcoin.PayToAddress, opReturns []bitcoin.OpReturnData,
-	privateKey *bec.PrivateKey, standardRate, dataRate *bt.Fee, sendingOrdinal bool) (uint64, error) {
+func draftTx(utxos []*bitcoin.Utxo, payToAddresses []*bitcoin.PayToAddress, inscriptionData *Ordinal, opReturnAsm *string,
+	privateKey *bec.PrivateKey, standardRate, dataRate *bt.Fee) (uint64, error) {
 
 	// Create the "Draft tx"
-	tx, err := CreateTx(utxos, payToAddresses, opReturns, privateKey, sendingOrdinal)
+	tx, err := CreateTx(utxos, payToAddresses, inscriptionData, opReturnAsm, privateKey)
 	if err != nil {
 		return 0, err
 	}

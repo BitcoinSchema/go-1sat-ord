@@ -1,4 +1,4 @@
-module github.com/bitcoinschema/go-ordinals
+module github.com/bitcoinschema/go-1sat-ord
 
 go 1.19
 
@@ -19,6 +19,7 @@ require (
 	github.com/bitcoinsv/bsvd v0.0.0-20190609155523-4c29707f7173 // indirect
 	github.com/bitcoinsv/bsvlog v0.0.0-20181216181007-cb81b076bf2e // indirect
 	github.com/bitcoinsv/bsvutil v0.0.0-20181216182056-1d77cf353ea9 // indirect
+	github.com/joho/godotenv v1.5.1
 	github.com/libsv/go-bk v0.1.6
 	github.com/libsv/go-bt v1.0.8 // indirect
 	github.com/libsv/go-bt/v2 v2.1.1

@@ -2,14 +2,6 @@
 
 A package for creating 1sat ordinals on Bitcoin SV.
 
-### Dependencies
-
-```go
-github.com/bitcoinschema/go-bitcoin
-github.com/bitcoinschema/go-b
-github.com/libsv/go-bt/v2
-```
-
 ### Usage
 
 ```go

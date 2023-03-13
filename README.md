@@ -25,4 +25,9 @@ tx, err := ordinals.Inscribe(utxos, inscriptionData, opReturn, purseWif, changeA
 
 // tx is a *bt.Tx from bsvlib/go-bt
 // tx.TxID()
+
 ```
+
+## More Information
+
+[1Sat Ordinals](https://github.com/bitcoinschema/1sat-ordinals)

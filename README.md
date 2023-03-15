@@ -2,6 +2,10 @@
 
 A package for creating 1sat Ordinals on Bitcoin SV.
 
+### Configuration
+
+Rename `sample.env` to `.env` and set the wif keys.
+
 ### Usage
 
 ```go

@@ -9,11 +9,6 @@ import (
 	"github.com/libsv/go-bt/v2"
 )
 
-type InscriptionID struct {
-	TxID  string
-	Index uint32
-}
-
 // Ordinal is the ordinal inscription data
 type Ordinal struct {
 	Data        []byte
@@ -53,6 +48,5 @@ func Inscribe(utxos []*bitcoin.Utxo, inscriptionData *Ordinal, opReturn bitcoin.
 		return nil, err
 	}
 
-	// how to figure out which ordinal number this new thing is?
 	return tx, nil
 }

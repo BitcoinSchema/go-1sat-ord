@@ -1,6 +1,6 @@
 # go-1sat-ord
 
-A package for creating 1sat ordinals on Bitcoin SV.
+A package for creating 1sat Ordinals on Bitcoin SV.
 
 ### Usage
 

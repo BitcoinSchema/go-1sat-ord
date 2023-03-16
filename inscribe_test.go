@@ -122,6 +122,5 @@ func TestInscription(t *testing.T) {
 	if len(bmapTx.Ord) != 1 {
 		t.Fatalf("tx %+v, bmapTx: %+v", tx, bmapTx)
 	}
-	t.Fatalf("%s", rawTx)
 
 }

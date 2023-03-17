@@ -58,7 +58,7 @@ func CreateTx(utxos []*bitcoin.Utxo, addresses []*bitcoin.PayToAddress, inscript
 			inscriptionContentTypeHex := hex.EncodeToString([]byte(inscriptionData.ContentType))
 			ordHex := hex.EncodeToString([]byte("ord"))
 
-			ordAsm := "OP_FALSE OP_IF " + ordHex + " OP_0 " + inscriptionHex + " OP_1 " + inscriptionContentTypeHex + " OP_ENDIF"
+			ordAsm := "OP_FALSE OP_IF " + ordHex + " OP_1 " + inscriptionContentTypeHex + " OP_0 " + inscriptionHex + " OP_ENDIF"
 			if opReturnAsm != nil {
 				ordAsm = ordAsm + " OP_RETURN " + *opReturnAsm
 			}

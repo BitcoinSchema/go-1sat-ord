@@ -11,6 +11,7 @@ This library provides functionality for working with Bitcoin SV ordinals, includ
 - Managing regular UTXOs for payments
 - BSV21 token deployment and transfers
 - Ordinal marketplace functionality (listing, purchasing, canceling)
+- Burning ordinals (removing them from circulation)
 - Helper functions for fetching UTXOs from APIs
 
 ## Installation
@@ -183,6 +184,40 @@ config := &ordinals.TransferBsv21TokenConfig{
 
 // Create the transaction
 tx, err := ordinals.TransferOrdToken(config)
+if err != nil {
+    // Handle error
+}
+
+// Broadcast the transaction
+result, err := tx.Broadcast(ordinals.OneSatBroadcaster())
+if err != nil {
+    // Handle error
+}
+```
+
+### Burn Ordinals
+
+```go
+// Configure the ordinal burning
+config := &ordinals.BurnOrdinalsConfig{
+    // Payment UTXOs for transaction fees
+    PaymentUtxos: paymentUtxos,
+    PaymentPk:    paymentPk,
+    // Ordinals to burn
+    Ordinals: nftUtxos,
+    OrdPk:    ordPk,
+    // Change address for leftover satoshis from payment utxos
+    ChangeAddress: "change_address",
+    // Optional MAP protocol metadata
+    Metadata: map[string][]byte{
+        "app":  []byte("myapp"),
+        "type": []byte("ord"),
+        "op":   []byte("burn"),
+    },
+}
+
+// Create the transaction
+tx, err := ordinals.BurnOrdinals(config)
 if err != nil {
     // Handle error
 }

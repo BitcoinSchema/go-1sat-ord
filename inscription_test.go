@@ -775,3 +775,151 @@ func TestTokenSplitConfig(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestBurnOrdinals(t *testing.T) {
+	// Create private keys for payment and ordinals
+	paymentPk, err := ec.NewPrivateKey()
+	assert.NoError(t, err)
+	ordPk, err := ec.NewPrivateKey()
+	assert.NoError(t, err)
+
+	// Prepare test payment UTXO
+	paymentUtxo := &Utxo{
+		TxID:         "0000000000000000000000000000000000000000000000000000000000000003",
+		Vout:         0,
+		ScriptPubKey: "76a914b437a081c28a178b9ce5e2a0e694d45d1d5e2c0388ac",
+		Satoshis:     100000,
+	}
+
+	// Prepare test ordinal UTXO with valid format
+	ordinalUtxo := &NftUtxo{
+		Utxo: Utxo{
+			TxID:         "0000000000000000000000000000000000000000000000000000000000000004",
+			Vout:         0,
+			ScriptPubKey: "76a914b437a081c28a178b9ce5e2a0e694d45d1d5e2c0388ac",
+			Satoshis:     1, // Must be 1 sat for ordinals
+		},
+		ContentType:  "text/plain",
+		CollectionID: "collection123",
+	}
+
+	// Test Case 1: Burn ordinal without metadata
+	t.Run("Burn ordinal without metadata", func(t *testing.T) {
+		// Create a test configuration
+		config := &BurnOrdinalsConfig{
+			PaymentUtxos:  []*Utxo{paymentUtxo},
+			PaymentPk:     paymentPk,
+			Ordinals:      []*NftUtxo{ordinalUtxo},
+			OrdPk:         ordPk,
+			ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
+		}
+
+		// Create the transaction
+		tx, err := BurnOrdinals(config)
+
+		// We expect the transaction to be created successfully
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify the transaction structure
+		assert.Equal(t, 2, len(tx.Inputs), "Should have 2 inputs: payment and ordinal")
+		assert.GreaterOrEqual(t, len(tx.Outputs), 2, "Should have at least 2 outputs: OP_RETURN and change")
+		assert.Equal(t, uint64(0), tx.Outputs[0].Satoshis, "OP_RETURN output should be 0 satoshis")
+	})
+
+	// Test Case 2: Burn ordinal with metadata
+	t.Run("Burn ordinal with metadata", func(t *testing.T) {
+		// Create a test configuration with metadata
+		config := &BurnOrdinalsConfig{
+			PaymentUtxos:  []*Utxo{paymentUtxo},
+			PaymentPk:     paymentPk,
+			Ordinals:      []*NftUtxo{ordinalUtxo},
+			OrdPk:         ordPk,
+			ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
+			Metadata: map[string][]byte{
+				"app":  []byte("testapp"),
+				"type": []byte("burn"),
+				"op":   []byte("burn"),
+			},
+		}
+
+		// Create the transaction
+		tx, err := BurnOrdinals(config)
+
+		// We expect the transaction to be created successfully
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify the transaction structure
+		assert.Equal(t, 2, len(tx.Inputs), "Should have 2 inputs: payment and ordinal")
+		assert.GreaterOrEqual(t, len(tx.Outputs), 2, "Should have at least 2 outputs: OP_RETURN and change")
+		assert.Equal(t, uint64(0), tx.Outputs[0].Satoshis, "OP_RETURN output should be 0 satoshis")
+	})
+
+	// Test Case 3: Try to burn a non-1sat ordinal (should fail)
+	t.Run("Try to burn non-1sat ordinal", func(t *testing.T) {
+		// Create an invalid ordinal (more than 1 sat)
+		invalidOrdinal := &NftUtxo{
+			Utxo: Utxo{
+				TxID:         "0000000000000000000000000000000000000000000000000000000000000003",
+				Vout:         0,
+				ScriptPubKey: "76a914b437a081c28a178b9ce5e2a0e694d45d1d5e2c0388ac",
+				Satoshis:     2, // More than 1 sat (invalid for ordinals)
+			},
+			ContentType:  "text/plain",
+			CollectionID: "collection123",
+		}
+
+		// Create a test configuration
+		config := &BurnOrdinalsConfig{
+			PaymentUtxos:  []*Utxo{paymentUtxo},
+			PaymentPk:     paymentPk,
+			Ordinals:      []*NftUtxo{invalidOrdinal},
+			OrdPk:         ordPk,
+			ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
+		}
+
+		// Create the transaction - should fail
+		tx, err := BurnOrdinals(config)
+
+		// We expect an error due to the ordinal not being 1 sat
+		assert.Error(t, err)
+		assert.Nil(t, tx)
+		assert.Contains(t, err.Error(), "must have exactly 1 satoshi")
+	})
+
+	// Test Case 4: Burn multiple ordinals
+	t.Run("Burn multiple ordinals", func(t *testing.T) {
+		// Create additional ordinal
+		ordinalUtxo2 := &NftUtxo{
+			Utxo: Utxo{
+				TxID:         "0000000000000000000000000000000000000000000000000000000000000004",
+				Vout:         1,
+				ScriptPubKey: "76a914b437a081c28a178b9ce5e2a0e694d45d1d5e2c0388ac",
+				Satoshis:     1,
+			},
+			ContentType:  "text/plain",
+			CollectionID: "collection123",
+		}
+
+		// Create a test configuration
+		config := &BurnOrdinalsConfig{
+			PaymentUtxos:  []*Utxo{paymentUtxo},
+			PaymentPk:     paymentPk,
+			Ordinals:      []*NftUtxo{ordinalUtxo, ordinalUtxo2},
+			OrdPk:         ordPk,
+			ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
+		}
+
+		// Create the transaction
+		tx, err := BurnOrdinals(config)
+
+		// We expect the transaction to be created successfully
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify the transaction structure
+		assert.Equal(t, 3, len(tx.Inputs), "Should have 3 inputs: payment and 2 ordinals")
+		assert.GreaterOrEqual(t, len(tx.Outputs), 2, "Should have at least 2 outputs: OP_RETURN and change")
+	})
+}

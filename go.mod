@@ -1,28 +1,22 @@
 module github.com/bitcoinschema/go-1sat-ord
 
-go 1.19
+go 1.24.1
 
 require (
-	github.com/bitcoinschema/go-bap v0.2.8 // indirect
-	github.com/bitcoinschema/go-bitcoin v0.3.20 // indirect
-	github.com/bitcoinschema/go-boost v0.0.1 // indirect
+	github.com/bitcoin-sv/go-templates v0.0.0
+	github.com/bsv-blockchain/go-sdk v1.1.22
+	github.com/stretchr/testify v1.10.0
 )
 
 require (
-	github.com/bitcoinschema/go-aip v0.1.9
-	github.com/bitcoinschema/go-b v0.0.17 // indirect
-	github.com/bitcoinschema/go-bitcoin/v2 v2.0.3
-	github.com/bitcoinschema/go-bmap v0.0.38
-	github.com/bitcoinschema/go-bob v0.3.3 // indirect
-	github.com/bitcoinschema/go-bpu v0.0.4 // indirect
-	github.com/bitcoinschema/go-map v0.0.16
-	github.com/bitcoinsv/bsvd v0.0.0-20190609155523-4c29707f7173 // indirect
-	github.com/bitcoinsv/bsvlog v0.0.0-20181216181007-cb81b076bf2e // indirect
-	github.com/bitcoinsv/bsvutil v0.0.0-20181216182056-1d77cf353ea9 // indirect
-	github.com/joho/godotenv v1.5.1
-	github.com/libsv/go-bk v0.1.6
-	github.com/libsv/go-bt v1.0.8 // indirect
-	github.com/libsv/go-bt/v2 v2.1.1
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	golang.org/x/crypto v0.31.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/bitcoin-sv/go-templates => ../go-templates
+
+replace github.com/bsv-blockchain/go-sdk => github.com/b-open-io/go-sdk v1.1.22-0.20250329172752-ca68d5bf1bee

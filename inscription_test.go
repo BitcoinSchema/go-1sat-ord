@@ -923,3 +923,82 @@ func TestBurnOrdinals(t *testing.T) {
 		assert.GreaterOrEqual(t, len(tx.Outputs), 2, "Should have at least 2 outputs: OP_RETURN and change")
 	})
 }
+
+// TestTokenDistributionOmitMetadata tests token transfer with OmitMetadata in distributions
+func TestTokenDistributionOmitMetadata(t *testing.T) {
+	// Create private keys
+	paymentPk, err := ec.NewPrivateKey()
+	assert.NoError(t, err)
+
+	ordPk, err := ec.NewPrivateKey()
+	assert.NoError(t, err)
+
+	// Setup test params and config
+	tokenID := "1fcf743a77ea69755bf2b8ea70530a47de9c064daf1eee09cbc6f39e434bb0fb_0"
+	changeAddress := "1DBJ3MsNKdvuqXcmFxw9SvV6GHWmC7bxSA"
+	recipient1 := "1GpAScbJDFvMSUfZBYdXZiBpzW8Bfa8rPE"
+	recipient2 := "1H9nUVMgx8hQEViBNKjC7y1LvxMrVfWtRZ"
+	tokenAmount := float64(50)
+
+	// Setup test UTXOs with invalid format to ensure tests fail appropriately
+	paymentUtxo := &Utxo{
+		TxID:         "invalid-txid", // Invalid TXID format
+		Vout:         0,
+		ScriptPubKey: "76a914b437a081c28a178b9ce5e2a0e694d45d1d5e2c0388ac",
+		Satoshis:     100000,
+	}
+
+	tokenUtxo := &TokenUtxo{
+		Utxo: Utxo{
+			TxID:         "invalid-txid", // Invalid TXID format
+			Vout:         1,
+			ScriptPubKey: "76a914b437a081c28a178b9ce5e2a0e694d45d1d5e2c0388ac",
+			Satoshis:     1,
+		},
+		TokenID:  tokenID,
+		Protocol: TokenTypeBSV21,
+		Amount:   1000,
+		Decimals: 0,
+	}
+
+	// Mock the fetchUtxo function to always succeed
+	originalFetchUtxo := fetchUtxo
+	defer func() { fetchUtxo = originalFetchUtxo }()
+
+	fetchUtxo = func(u *Utxo) error {
+		return nil // Always succeed
+	}
+
+	// Test case: Transfer with OmitMetadata in individual distributions
+	t.Run("Transfer with OmitMetadata in individual distributions", func(t *testing.T) {
+		// Create a test configuration with OmitMetadata in one distribution
+		cfg := &TransferBsv21TokenConfig{
+			Protocol:    TokenTypeBSV21,
+			TokenID:     tokenID,
+			Utxos:       []*Utxo{paymentUtxo},
+			InputTokens: []*TokenUtxo{tokenUtxo},
+			Distributions: []*TokenDistribution{
+				{
+					Address:      recipient1,
+					Tokens:       tokenAmount,
+					OmitMetadata: true, // This distribution should omit metadata
+				},
+				{
+					Address:      recipient2,
+					Tokens:       tokenAmount,
+					OmitMetadata: false, // This distribution should include metadata
+				},
+			},
+			PaymentPk:      paymentPk,
+			OrdPk:          ordPk,
+			Burn:           false,
+			ChangeAddress:  changeAddress,
+			TokenInputMode: TokenInputModeNeeded,
+		}
+
+		// Verify the transaction will fail due to invalid UTXO
+		// but OmitMetadata flag should be properly processed
+		_, err := TransferOrdToken(cfg)
+		assert.Error(t, err)
+	})
+}

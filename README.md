@@ -157,27 +157,30 @@ threshold := 100.0
 // Configure token transfer with split configuration
 config := &ordinals.TransferBsv21TokenConfig{
     Protocol:    ordinals.TokenTypeBSV21,
-    TokenID:     "token_id",
+    TokenID:     "your-token-id",
     Utxos:       paymentUtxos,
     InputTokens: tokenUtxos,
     Distributions: []*ordinals.TokenDistribution{
         {
-            Address: "destination_address",
-            Tokens:  500,
+            Address: "recipient-address",
+            Tokens:  100,
+            // Optional: Omit metadata from this distribution output
+            // Note: Currently not functional, pending library enhancements
+            OmitMetadata: true,
         },
     },
     PaymentPk:     paymentPk,
     OrdPk:         ordPk,
-    ChangeAddress: "change_address",
-    // Use TokenInputModeNeeded to consume only the needed tokens
-    TokenInputMode: ordinals.TokenInputModeNeeded,
-    // Configure token splitting for change outputs
+    ChangeAddress: "change-address",
+    TokenInputMode: ordinals.TokenInputModeNeeded, // Or TokenInputModeAll
+    // Split configuration for token change outputs
     SplitConfig: &ordinals.TokenSplitConfig{
-        // Split into 3 outputs
+        // Number of outputs to split the token change into
         Outputs: 3,
-        // Minimum tokens per output
-        Threshold: &threshold,
-        // Omit metadata from change outputs to reduce size
+        // Minimum amount of tokens per output (optional)
+        Threshold: &threshold, // where threshold is float64
+        // Omit metadata from change outputs (optional)
+        // Note: Currently not functional, pending library enhancements
         OmitMetadata: true,
     },
 }
@@ -229,25 +232,188 @@ if err != nil {
 }
 ```
 
+### Token Marketplace Functions
+
+#### Create Token Listings
+
+```go
+// Configure the token listings
+config := &ordinals.CreateOrdTokenListingsConfig{
+    Utxos: paymentUtxos,
+    Listings: []*struct {
+        PayAddress  string
+        Price       uint64
+        ListingUtxo *ordinals.TokenUtxo
+        OrdAddress  string
+    }{
+        {
+            PayAddress:  "seller_payment_address",
+            Price:       1000000, // Price in satoshis
+            ListingUtxo: tokenUtxo,
+            OrdAddress:  "seller_address",
+        },
+    },
+    PaymentPk:     paymentPk,
+    OrdPk:         ordPk,
+    ChangeAddress: "change_address",
+}
+
+// Create the transaction
+tx, err := ordinals.CreateOrdTokenListings(config)
+if err != nil {
+    // Handle error
+}
+
+// Broadcast the transaction
+result, err := tx.Broadcast(ordinals.OneSatBroadcaster())
+if err != nil {
+    // Handle error
+}
+```
+
+#### Purchase Token Listing
+
+```go
+// Configure the token purchase
+config := &ordinals.PurchaseOrdTokenListingConfig{
+    Protocol:    ordinals.TokenTypeBSV21,
+    TokenID:     "token_id",
+    Utxos:       paymentUtxos,
+    PaymentPk:   paymentPk,
+    ListingUtxo: tokenUtxo,
+    OrdAddress:  "buyer_address",
+    // Optional additional payments
+    AdditionalPayments: []*ordinals.PayToAddress{
+        {
+            Address:  "fee_recipient_address",
+            Satoshis: 10000,
+        },
+    },
+    ChangeAddress: "change_address",
+}
+
+// Create the transaction
+tx, err := ordinals.PurchaseOrdTokenListing(config)
+if err != nil {
+    // Handle error
+}
+
+// Broadcast the transaction
+result, err := tx.Broadcast(ordinals.OneSatBroadcaster())
+if err != nil {
+    // Handle error
+}
+```
+
+#### Cancel Token Listings
+
+```go
+// Configure the token listing cancellation
+config := &ordinals.CancelOrdTokenListingsConfig{
+    Utxos:        paymentUtxos,
+    ListingUtxos: tokenListingUtxos,
+    OrdPk:        ordPk,
+    PaymentPk:    paymentPk,
+    ChangeAddress: "change_address",
+}
+
+// Create the transaction
+tx, err := ordinals.CancelOrdTokenListings(config)
+if err != nil {
+    // Handle error
+}
+
+// Broadcast the transaction
+result, err := tx.Broadcast(ordinals.OneSatBroadcaster())
+if err != nil {
+    // Handle error
+}
+```
+
 ### Helper Functions
+
+#### Fetch UTXOs
 
 ```go
 // Fetch UTXOs for payment
-utxos, err := ordinals.FetchPayUtxos("address")
+paymentUtxos, err := ordinals.FetchPayUtxos("your-payment-address")
 if err != nil {
     // Handle error
 }
 
 // Fetch NFT UTXOs
-nftUtxos, err := ordinals.FetchNftUtxos("address", "collection_id")
+nftUtxos, err := ordinals.FetchNftUtxos("your-nft-address")
 if err != nil {
     // Handle error
 }
 
-// Fetch Token UTXOs
-tokenUtxos, err := ordinals.FetchTokenUtxos(ordinals.TokenTypeBSV21, "token_id", "address")
+// Fetch token UTXOs
+tokenUtxos, err := ordinals.FetchTokenUtxos("your-token-address", "token-id")
 if err != nil {
     // Handle error
+}
+```
+
+#### Select Token UTXOs
+
+```go
+// Define selection options
+options := &ordinals.TokenSelectionOptions{
+    InputStrategy:  ordinals.TokenSelectionStrategyLargestFirst,
+    OutputStrategy: ordinals.TokenSelectionStrategySmallestFirst,
+}
+
+// Select token UTXOs
+result := ordinals.SelectTokenUtxos(tokenUtxos, 10.5, 8, options)
+if !result.IsEnough {
+    // Not enough tokens available
+    // Handle insufficient funds
+} else {
+    // Use the selected UTXOs
+    selectedUtxos := result.SelectedUtxos
+    totalAmount := result.TotalSelected
+    // Continue with transaction
+}
+```
+
+#### Validate Subtype Data
+
+```go
+// Create subtype data for a collection
+collectionData := &ordinals.SubTypeData{
+    Description: "My Collection",
+    Quantity:    100,
+    Traits: map[string]interface{}{
+        "category": "art",
+        "rarity":   "common",
+    },
+}
+
+// Validate collection data
+result := ordinals.ValidateSubTypeData(ordinals.TokenTypeBSV21, "collection", collectionData)
+if !result.Valid {
+    // Handle validation errors
+    for _, err := range result.Errors {
+        fmt.Println("Validation error:", err)
+    }
+} else {
+    // Data is valid, proceed with collection creation
+}
+
+// Create subtype data for a collection item
+itemData := &ordinals.SubTypeData{
+    CollectionID: "collection123",
+    MintNumber:   1,
+    Rank:         5,
+    RarityLabel:  "rare",
+}
+
+// Validate collection item data
+result = ordinals.ValidateSubTypeData(ordinals.TokenTypeBSV21, "collectionItem", itemData)
+if !result.Valid {
+    // Handle validation errors
+} else {
+    // Data is valid, proceed with item creation
 }
 ```
 

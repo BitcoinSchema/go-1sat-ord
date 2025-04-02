@@ -193,6 +193,10 @@ func TransferOrdToken(config *TransferBsv21TokenConfig) (*transaction.Transactio
 		}
 
 		// Create token script
+		// Note: The OmitMetadata flag is currently not used as the bsv21 library
+		// doesn't support creating scripts without the token data.
+		// Future enhancement: When the library supports it, this would create
+		// a minimal script when dist.OmitMetadata is true.
 		tokenScript, err := token.Lock(p2pkhScript)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create token script: %w", err)
@@ -290,8 +294,8 @@ func TransferOrdToken(config *TransferBsv21TokenConfig) (*transaction.Transactio
 }
 
 // createSplitTokenOutputs splits token change into multiple outputs according to config
-// When SplitConfig.OmitMetadata is true, it creates token outputs without metadata
-// which results in smaller transaction sizes
+// Note: SplitConfig.OmitMetadata is currently just a flag for future enhancement.
+// Current implementation always includes the token data in the script.
 func createSplitTokenOutputs(
 	tx *transaction.Transaction,
 	config *TransferBsv21TokenConfig,
@@ -339,7 +343,7 @@ func createSplitTokenOutputs(
 			outputAmount = tokensLeft
 		}
 
-		// Create token transfer without metadata if configured
+		// Create token transfer
 		token := &bsv21.Bsv21{
 			Op:  string(bsv21.OpTransfer),
 			Id:  config.TokenID,
@@ -347,17 +351,9 @@ func createSplitTokenOutputs(
 		}
 
 		// Create token script
-		var tokenScript *script.Script
-
-		// If OmitMetadata is true, we'll create a simplified token script
-		// This is especially useful for token change outputs where metadata isn't needed
-		if config.SplitConfig.OmitMetadata {
-			tokenScript, err = token.Lock(p2pkhScript)
-		} else {
-			// Use standard script with metadata
-			tokenScript, err = token.Lock(p2pkhScript)
-		}
-
+		// Note: The OmitMetadata flag is just for future enhancement.
+		// Currently, all token scripts include the token data as an inscription.
+		tokenScript, err := token.Lock(p2pkhScript)
 		if err != nil {
 			return fmt.Errorf("failed to create token script: %w", err)
 		}
@@ -375,8 +371,8 @@ func createSplitTokenOutputs(
 }
 
 // createSingleTokenChangeOutput creates a single token change output
-// If SplitConfig is provided and OmitMetadata is true, it creates a token output
-// without metadata which results in a smaller transaction size
+// Note: SplitConfig.OmitMetadata is currently just a flag for future enhancement.
+// Current implementation always includes the token data in the script.
 func createSingleTokenChangeOutput(
 	tx *transaction.Transaction,
 	config *TransferBsv21TokenConfig,
@@ -402,19 +398,9 @@ func createSingleTokenChangeOutput(
 	}
 
 	// Create token script
-	var tokenScript *script.Script
-
-	// Check if we should omit metadata
-	if config.SplitConfig != nil && config.SplitConfig.OmitMetadata {
-		// Use standard script for change output
-		// Note: OmitMetadata is currently just a flag, actual implementation
-		// is pending BSV21 template enhancements to support minimal token scripts
-		tokenScript, err = token.Lock(p2pkhScript)
-	} else {
-		// Use standard script with metadata
-		tokenScript, err = token.Lock(p2pkhScript)
-	}
-
+	// Note: The OmitMetadata flag is just for future enhancement.
+	// Currently, all token scripts include the token data as an inscription.
+	tokenScript, err := token.Lock(p2pkhScript)
 	if err != nil {
 		return fmt.Errorf("failed to create token script: %w", err)
 	}

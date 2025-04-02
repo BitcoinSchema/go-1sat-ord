@@ -74,6 +74,8 @@ type TokenUtxo struct {
 type TokenDistribution struct {
 	Address string
 	Tokens  float64
+	// OmitMetadata determines whether to omit metadata from this distribution's output
+	OmitMetadata bool
 }
 
 // CreateOrdinalsConfig represents configuration for creating ordinals
@@ -160,6 +162,31 @@ type CreateOrdListingsConfig struct {
 	SatsPerKb     uint64
 }
 
+// CreateOrdTokenListingsConfig represents configuration for creating token listings
+type CreateOrdTokenListingsConfig struct {
+	// Utxos are the UTXOs to use for payment
+	Utxos []*Utxo
+	// Listings is the list of token listings to create
+	Listings []*struct {
+		// PayAddress is the address to receive payment when the listing is purchased
+		PayAddress string
+		// Price is the price in satoshis for the token
+		Price uint64
+		// ListingUtxo is the UTXO containing the token
+		ListingUtxo *TokenUtxo
+		// OrdAddress is the address that owns the token
+		OrdAddress string
+	}
+	// PaymentPk is the private key for the payment UTXOs
+	PaymentPk *ec.PrivateKey
+	// OrdPk is the private key for the token UTXOs
+	OrdPk *ec.PrivateKey
+	// ChangeAddress is the address to send change to
+	ChangeAddress string
+	// SatsPerKb is the fee rate in satoshis per kilobyte
+	SatsPerKb uint64
+}
+
 // PurchaseOrdListingConfig represents configuration for purchasing an ordinal listing
 type PurchaseOrdListingConfig struct {
 	Utxos         []*Utxo
@@ -170,6 +197,30 @@ type PurchaseOrdListingConfig struct {
 	SatsPerKb     uint64
 }
 
+// PurchaseOrdTokenListingConfig represents configuration for purchasing a token listing
+type PurchaseOrdTokenListingConfig struct {
+	// Protocol is the token protocol (e.g., TokenTypeBSV21)
+	Protocol TokenType
+	// TokenID is the ID of the token
+	TokenID string
+	// Utxos are the UTXOs to use for payment
+	Utxos []*Utxo
+	// PaymentPk is the private key for the payment UTXOs
+	PaymentPk *ec.PrivateKey
+	// ListingUtxo is the UTXO containing the token listing
+	ListingUtxo *TokenUtxo
+	// OrdAddress is the address to send the token to
+	OrdAddress string
+	// ChangeAddress is the address to send change to
+	ChangeAddress string
+	// SatsPerKb is the fee rate in satoshis per kilobyte
+	SatsPerKb uint64
+	// AdditionalPayments is an optional list of additional payments to make
+	AdditionalPayments []*PayToAddress
+	// Metadata is optional MAP protocol metadata to include in the transfer output
+	Metadata map[string][]byte
+}
+
 // CancelOrdListingsConfig represents configuration for cancelling ordinal listings
 type CancelOrdListingsConfig struct {
 	Utxos         []*Utxo
@@ -178,6 +229,22 @@ type CancelOrdListingsConfig struct {
 	PaymentPk     *ec.PrivateKey
 	ChangeAddress string
 	SatsPerKb     uint64
+}
+
+// CancelOrdTokenListingsConfig represents configuration for cancelling token listings
+type CancelOrdTokenListingsConfig struct {
+	// Utxos are the UTXOs to use for payment
+	Utxos []*Utxo
+	// ListingUtxos is the list of token listing UTXOs to cancel
+	ListingUtxos []*TokenUtxo
+	// OrdPk is the private key that owns the tokens
+	OrdPk *ec.PrivateKey
+	// PaymentPk is the private key for the payment UTXOs
+	PaymentPk *ec.PrivateKey
+	// ChangeAddress is the address to send change to
+	ChangeAddress string
+	// SatsPerKb is the fee rate in satoshis per kilobyte
+	SatsPerKb uint64
 }
 
 // BroadcastResult represents the result of broadcasting a transaction

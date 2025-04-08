@@ -1,6 +1,7 @@
 package ordinals
 
 import (
+	"github.com/bitcoin-sv/go-templates/template/inscription"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -24,6 +25,26 @@ type PayToAddress struct {
 type File struct {
 	Content     []byte
 	ContentType string
+}
+
+// Destination represents a destination for an inscription
+type Destination struct {
+	// Address is the destination address for the inscription
+	Address string
+	// Inscription is the optional inscription to include
+	Inscription *inscription.Inscription
+	// omitMetadata determines whether to omit metadata from this inscription
+	omitMetadata bool
+}
+
+// OmitMetadata returns whether metadata should be omitted from this inscription
+func (d *Destination) OmitMetadata() bool {
+	return d.omitMetadata
+}
+
+// SetOmitMetadata sets whether metadata should be omitted from this inscription
+func (d *Destination) SetOmitMetadata(omit bool) {
+	d.omitMetadata = omit
 }
 
 // TokenType represents the type of token
@@ -80,30 +101,28 @@ type TokenDistribution struct {
 
 // CreateOrdinalsConfig represents configuration for creating ordinals
 type CreateOrdinalsConfig struct {
-	Utxos        []*Utxo
-	Destinations []*struct {
-		Address  string
-		File     *File
-		Metadata map[string][]byte
-	}
+	Utxos         []*Utxo
+	Destinations  []*Destination
 	PaymentPk     *ec.PrivateKey
 	ChangeAddress string
 	SatsPerKb     uint64
+	// AdditionalPayments is an optional list of additional payments to make
+	AdditionalPayments []*PayToAddress
 }
 
 // SendOrdinalsConfig represents configuration for sending ordinals
 type SendOrdinalsConfig struct {
-	PaymentUtxos []*Utxo
-	Ordinals     []*NftUtxo
-	PaymentPk    *ec.PrivateKey
-	OrdPk        *ec.PrivateKey
-	Destinations []*struct {
-		Address  string
-		File     *File
-		Metadata map[string][]byte
-	}
+	PaymentUtxos  []*Utxo
+	Ordinals      []*NftUtxo
+	PaymentPk     *ec.PrivateKey
+	OrdPk         *ec.PrivateKey
+	Destinations  []*Destination
 	ChangeAddress string
 	SatsPerKb     uint64
+	// AdditionalPayments is an optional list of additional payments to make
+	AdditionalPayments []*PayToAddress
+	// EnforceUniformSend ensures that the number of destinations matches the number of ordinals
+	EnforceUniformSend bool
 }
 
 // SendUtxosConfig represents configuration for sending utxos

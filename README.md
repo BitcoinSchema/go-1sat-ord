@@ -13,6 +13,7 @@ This library provides functionality for working with Bitcoin SV ordinals, includ
 - Ordinal marketplace functionality (listing, purchasing, canceling)
 - Burning ordinals (removing them from circulation)
 - Helper functions for fetching UTXOs from APIs
+- Utility functions for token UTXO selection and subtype data validation
 
 ## Installation
 
@@ -47,28 +48,36 @@ utxos := []*ordinals.Utxo{
     },
 }
 
+// Create a destination with inscription
+destination := &ordinals.Destination{
+    Address: "destination_address",
+    File: &ordinals.File{
+        Content:     []byte("Hello, world!"),
+        ContentType: "text/plain",
+    },
+    // Optional MAP protocol metadata
+    Metadata: map[string][]byte{
+        "key": []byte("value"),
+    },
+}
+
+// If you want to omit metadata from this inscription
+// This creates a smaller output with just the P2PKH script
+// destination.SetOmitMetadata(true)
+
 // Configure the inscription
 config := &ordinals.CreateOrdinalsConfig{
-    Utxos: utxos,
-    Destinations: []*struct {
-        Address     string
-        File        *ordinals.File
-        Metadata    map[string][]byte
-    }{
+    Utxos:        utxos,
+    Destinations: []*ordinals.Destination{destination},
+    PaymentPk:    paymentPk,
+    ChangeAddress: "change_address",
+    // Optional additional payments
+    AdditionalPayments: []*ordinals.PayToAddress{
         {
-            Address: "destination_address",
-            File: &ordinals.File{
-                Content:     []byte("Hello, world!"),
-                ContentType: "text/plain",
-            },
-            // Optional MAP protocol metadata
-            Metadata: map[string][]byte{
-                "key": []byte("value"),
-            },
+            Address:  "payment_address",
+            Satoshis: 5000,
         },
     },
-    PaymentPk:     paymentPk,
-    ChangeAddress: "change_address",
 }
 
 // Create the transaction
@@ -87,22 +96,42 @@ if err != nil {
 ### Send Ordinals
 
 ```go
+// Create a destination for the ordinal
+destination := &ordinals.Destination{
+    Address: "destination_address",
+    // Optional: include a new file to reinscribe
+    File: &ordinals.File{
+        Content:     []byte("New inscription content"),
+        ContentType: "text/plain",
+    },
+    // Optional: include metadata
+    Metadata: map[string][]byte{
+        "app":  []byte("myapp"),
+        "type": []byte("ord"),
+    },
+}
+
+// If you want to omit metadata from this inscription
+// destination.SetOmitMetadata(true)
+
 // Configure the send
 config := &ordinals.SendOrdinalsConfig{
-    PaymentUtxos: paymentUtxos,
-    Ordinals:     ordinalUtxos,
-    PaymentPk:    paymentPk,
-    OrdPk:        ordPk,
-    Destinations: []*struct {
-        Address  string
-        File     *ordinals.File
-        Metadata map[string][]byte
-    }{
+    PaymentUtxos:  paymentUtxos,
+    Ordinals:      ordinalUtxos,
+    PaymentPk:     paymentPk,
+    OrdPk:         ordPk,
+    Destinations:  []*ordinals.Destination{destination},
+    ChangeAddress: "change_address",
+    // Optional: Control whether number of destinations must match number of ordinals
+    // Default is true, set to false to allow different counts
+    EnforceUniformSend: true,
+    // Optional: Include additional payments in the transaction
+    AdditionalPayments: []*ordinals.PayToAddress{
         {
-            Address: "destination_address",
+            Address:  "payment_address",
+            Satoshis: 5000,
         },
     },
-    ChangeAddress: "change_address",
 }
 
 // Create the transaction
@@ -165,7 +194,7 @@ config := &ordinals.TransferBsv21TokenConfig{
             Address: "recipient-address",
             Tokens:  100,
             // Optional: Omit metadata from this distribution output
-            // Note: Currently not functional, pending library enhancements
+            // This creates a smaller output with just the P2PKH script
             OmitMetadata: true,
         },
     },
@@ -180,13 +209,13 @@ config := &ordinals.TransferBsv21TokenConfig{
         // Minimum amount of tokens per output (optional)
         Threshold: &threshold, // where threshold is float64
         // Omit metadata from change outputs (optional)
-        // Note: Currently not functional, pending library enhancements
+        // This creates smaller outputs with just the P2PKH script
         OmitMetadata: true,
     },
 }
 
 // Create the transaction
-tx, err := ordinals.TransferOrdToken(config)
+tx, err := ordinals.TransferOrdTokens(config)
 if err != nil {
     // Handle error
 }
@@ -342,13 +371,13 @@ if err != nil {
 }
 
 // Fetch NFT UTXOs
-nftUtxos, err := ordinals.FetchNftUtxos("your-nft-address")
+nftUtxos, err := ordinals.FetchNftUtxos("your-nft-address", "collection-id")
 if err != nil {
     // Handle error
 }
 
 // Fetch token UTXOs
-tokenUtxos, err := ordinals.FetchTokenUtxos("your-token-address", "token-id")
+tokenUtxos, err := ordinals.FetchTokenUtxos(ordinals.TokenTypeBSV21, "token-id", "your-token-address")
 if err != nil {
     // Handle error
 }
@@ -417,6 +446,32 @@ if !result.Valid {
 }
 ```
 
+## Testing
+
+The library includes comprehensive tests for all functionality, including token selection strategies, marketplace operations, and token transfers with various configurations. To run the tests:
+
+```bash
+go test -v ./...
+```
+
+## Error Handling
+
+The library provides detailed error messages for common issues:
+
+- Insufficient funds
+- Invalid addresses
+- Script creation errors
+- Token validation failures
+- UTXO fetch failures
+
+All errors are wrapped with context to help identify the source of the problem.
+
 ## More Information
 
 [1Sat Ordinals](https://github.com/bitcoinschema/1sat-ordinals)
+
+## Token Functions
+
+- `DeployToken`: Create a new BSV-20 or BSV-21 token deployment transaction
+- `MintBsv20`: Mint new BSV-20 tokens
+- `TransferOrdTokens`: Transfer BSV-20 or BSV-21 tokens with advanced distribution options

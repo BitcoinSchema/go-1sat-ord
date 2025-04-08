@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/bitcoin-sv/go-templates/template/inscription"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/stretchr/testify/assert"
@@ -45,35 +46,177 @@ func TestCreateOrdinals(t *testing.T) {
 		Satoshis:     59024,
 	}
 
-	// Create a test configuration
-	config := &CreateOrdinalsConfig{
-		Utxos: []*Utxo{utxo},
-		Destinations: []*struct {
-			Address  string
-			File     *File
-			Metadata map[string][]byte
-		}{
-			{
-				Address: "1BitcoinEaterAddressDontSendf59kuE",
-				File: &File{
-					Content:     []byte("Hello, world!"),
-					ContentType: "text/plain",
-				},
-				Metadata: map[string][]byte{
-					"test": []byte("value"),
+	// Test Case 1: Basic inscription with metadata
+	t.Run("basic inscription with metadata", func(t *testing.T) {
+		// Create a test configuration
+		config := &CreateOrdinalsConfig{
+			Utxos: []*Utxo{utxo},
+			Destinations: []*Destination{
+				{
+					Address: "1BitcoinEaterAddressDontSendf59kuE",
+					Inscription: &inscription.Inscription{
+						File: inscription.File{
+							Content: []byte("Hello, world!"),
+							Type:    "text/plain",
+						},
+						Bitcom: map[string][]byte{
+							"test": []byte("value"),
+						},
+					},
 				},
 			},
-		},
-		PaymentPk:     paymentPk,
-		ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
-	}
+			PaymentPk:     paymentPk,
+			ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
+		}
 
-	// Create the transaction
-	tx, err := CreateOrdinals(config)
+		// Create the transaction
+		tx, err := CreateOrdinals(config)
 
-	// The transaction should be created successfully without errors
-	assert.NoError(t, err)
-	assert.NotNil(t, tx)
+		// The transaction should be created successfully without errors
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify outputs: at least the inscription output and change output
+		assert.GreaterOrEqual(t, len(tx.Outputs), 2, "Should have at least 2 outputs")
+	})
+
+	// Test Case 2: Inscription with omitMetadata=true
+	t.Run("inscription with omitMetadata=true", func(t *testing.T) {
+		// Create a test configuration
+		config := &CreateOrdinalsConfig{
+			Utxos: []*Utxo{utxo},
+			Destinations: []*Destination{
+				{
+					Address: "1BitcoinEaterAddressDontSendf59kuE",
+					Inscription: &inscription.Inscription{
+						File: inscription.File{
+							Content: []byte("Hello, world!"),
+							Type:    "text/plain",
+						},
+						Bitcom: map[string][]byte{
+							"test": []byte("value"),
+						},
+					},
+				},
+			},
+			PaymentPk:     paymentPk,
+			ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
+		}
+
+		// Set omitMetadata to true
+		config.Destinations[0].SetOmitMetadata(true)
+
+		// Create the transaction
+		tx, err := CreateOrdinals(config)
+
+		// The transaction should be created successfully without errors
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify outputs: at least the inscription output and change output
+		assert.GreaterOrEqual(t, len(tx.Outputs), 2, "Should have at least 2 outputs")
+	})
+
+	// Test Case 3: Inscription with additionalPayments
+	t.Run("inscription with additionalPayments", func(t *testing.T) {
+		// Create a test configuration
+		config := &CreateOrdinalsConfig{
+			Utxos: []*Utxo{utxo},
+			Destinations: []*Destination{
+				{
+					Address: "1BitcoinEaterAddressDontSendf59kuE",
+					Inscription: &inscription.Inscription{
+						File: inscription.File{
+							Content: []byte("Hello, world!"),
+							Type:    "text/plain",
+						},
+					},
+				},
+			},
+			PaymentPk:     paymentPk,
+			ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
+			AdditionalPayments: []*PayToAddress{
+				{
+					Address:  "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+					Satoshis: 1000,
+				},
+				{
+					Address:  "12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX",
+					Satoshis: 2000,
+				},
+			},
+		}
+
+		// Create the transaction
+		tx, err := CreateOrdinals(config)
+
+		// The transaction should be created successfully without errors
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify outputs: should have 4 outputs - inscription, two additional payments, and change
+		assert.Equal(t, 4, len(tx.Outputs), "Should have 4 outputs (inscription, 2 payments, change)")
+
+		// Verify correct payment amounts
+		// Note: The exact order will depend on the implementation, so we should check for existence rather than exact order
+		foundPayment1 := false
+		foundPayment2 := false
+
+		for _, output := range tx.Outputs {
+			if output.Satoshis == 1000 {
+				foundPayment1 = true
+			}
+			if output.Satoshis == 2000 {
+				foundPayment2 = true
+			}
+		}
+
+		assert.True(t, foundPayment1, "Should have an output with 1000 satoshis")
+		assert.True(t, foundPayment2, "Should have an output with 2000 satoshis")
+	})
+
+	// Test Case 4: Multiple destinations
+	t.Run("multiple destinations", func(t *testing.T) {
+		// Create a test configuration with multiple destinations
+		config := &CreateOrdinalsConfig{
+			Utxos: []*Utxo{utxo},
+			Destinations: []*Destination{
+				{
+					Address: "1BitcoinEaterAddressDontSendf59kuE",
+					Inscription: &inscription.Inscription{
+						File: inscription.File{
+							Content: []byte("Inscription 1"),
+							Type:    "text/plain",
+						},
+					},
+				},
+				{
+					Address: "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+					Inscription: &inscription.Inscription{
+						File: inscription.File{
+							Content: []byte("Inscription 2"),
+							Type:    "text/plain",
+						},
+						Bitcom: map[string][]byte{
+							"test": []byte("metadata for second inscription"),
+						},
+					},
+				},
+			},
+			PaymentPk:     paymentPk,
+			ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
+		}
+
+		// Create the transaction
+		tx, err := CreateOrdinals(config)
+
+		// The transaction should be created successfully without errors
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify outputs: should have at least 3 outputs (2 inscriptions + change)
+		assert.GreaterOrEqual(t, len(tx.Outputs), 3, "Should have at least 3 outputs (2 inscriptions + change)")
+	})
 }
 
 func TestSendOrdinals(t *testing.T) {
@@ -92,7 +235,7 @@ func TestSendOrdinals(t *testing.T) {
 		Satoshis:     100000,
 	}
 
-	ordinalUtxo := &NftUtxo{
+	ordinalUtxo1 := &NftUtxo{
 		Utxo: Utxo{
 			TxID:         "0000000000000000000000000000000000000000000000000000000000000003",
 			Vout:         1,
@@ -103,34 +246,234 @@ func TestSendOrdinals(t *testing.T) {
 		CollectionID: "collection123",
 	}
 
-	// Create a test configuration
-	config := &SendOrdinalsConfig{
-		PaymentUtxos: []*Utxo{paymentUtxo},
-		Ordinals:     []*NftUtxo{ordinalUtxo},
-		PaymentPk:    paymentPk,
-		OrdPk:        ordPk,
-		Destinations: []*struct {
-			Address  string
-			File     *File
-			Metadata map[string][]byte
-		}{
-			{
-				Address: "1BitcoinEaterAddressDontSendf59kuE",
-			},
+	ordinalUtxo2 := &NftUtxo{
+		Utxo: Utxo{
+			TxID:         "0000000000000000000000000000000000000000000000000000000000000004",
+			Vout:         0,
+			ScriptPubKey: "76a914b437a081c28a178b9ce5e2a0e694d45d1d5e2c0388ac",
+			Satoshis:     1,
 		},
-		ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
+		ContentType:  "text/plain",
+		CollectionID: "collection456",
 	}
 
-	// Create the transaction
-	tx, err := SendOrdinals(config)
+	// Test Case 1: Basic sending with metadata
+	t.Run("basic sending with metadata", func(t *testing.T) {
+		// Create a test configuration
+		config := &SendOrdinalsConfig{
+			PaymentUtxos: []*Utxo{paymentUtxo},
+			Ordinals:     []*NftUtxo{ordinalUtxo1},
+			PaymentPk:    paymentPk,
+			OrdPk:        ordPk,
+			Destinations: []*Destination{
+				{
+					Address: "1BitcoinEaterAddressDontSendf59kuE",
+					Inscription: &inscription.Inscription{
+						File: inscription.File{
+							Content: []byte("Transferred content"),
+							Type:    "text/plain",
+						},
+						Bitcom: map[string][]byte{
+							"test": []byte("metadata value"),
+						},
+					},
+				},
+			},
+			ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
+		}
 
-	// We expect the transaction to be created successfully
-	assert.NoError(t, err)
-	assert.NotNil(t, tx)
+		// Create the transaction
+		tx, err := SendOrdinals(config)
 
-	// Verify the transaction structure
-	assert.Equal(t, 2, len(tx.Inputs), "Should have 2 inputs: payment and ordinal")
-	assert.Equal(t, 2, len(tx.Outputs), "Should have 2 outputs: destination and change")
+		// We expect the transaction to be created successfully
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify the transaction structure
+		assert.Equal(t, 2, len(tx.Inputs), "Should have 2 inputs: payment and ordinal")
+		assert.Equal(t, 2, len(tx.Outputs), "Should have 2 outputs: destination and change")
+	})
+
+	// Test Case 2: Sending with omitMetadata=true
+	t.Run("sending with omitMetadata=true", func(t *testing.T) {
+		// Create a test configuration
+		config := &SendOrdinalsConfig{
+			PaymentUtxos: []*Utxo{paymentUtxo},
+			Ordinals:     []*NftUtxo{ordinalUtxo1},
+			PaymentPk:    paymentPk,
+			OrdPk:        ordPk,
+			Destinations: []*Destination{
+				{
+					Address: "1BitcoinEaterAddressDontSendf59kuE",
+					Inscription: &inscription.Inscription{
+						File: inscription.File{
+							Content: []byte("Transferred content"),
+							Type:    "text/plain",
+						},
+						Bitcom: map[string][]byte{
+							"test": []byte("metadata to be omitted"),
+						},
+					},
+				},
+			},
+			ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
+		}
+
+		// Set omitMetadata to true
+		config.Destinations[0].SetOmitMetadata(true)
+
+		// Create the transaction
+		tx, err := SendOrdinals(config)
+
+		// We expect the transaction to be created successfully
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify the transaction structure
+		assert.Equal(t, 2, len(tx.Inputs), "Should have 2 inputs: payment and ordinal")
+		assert.Equal(t, 2, len(tx.Outputs), "Should have 2 outputs: destination and change")
+	})
+
+	// Test Case 3: Sending with additionalPayments
+	t.Run("sending with additionalPayments", func(t *testing.T) {
+		// Create a test configuration
+		config := &SendOrdinalsConfig{
+			PaymentUtxos: []*Utxo{paymentUtxo},
+			Ordinals:     []*NftUtxo{ordinalUtxo1},
+			PaymentPk:    paymentPk,
+			OrdPk:        ordPk,
+			Destinations: []*Destination{
+				{
+					Address: "1BitcoinEaterAddressDontSendf59kuE",
+				},
+			},
+			ChangeAddress: "1BitcoinEaterAddressDontSendf59kuE",
+			AdditionalPayments: []*PayToAddress{
+				{
+					Address:  "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+					Satoshis: 1000,
+				},
+				{
+					Address:  "12c6DSiU4Rq3P4ZxziKxzrL5LmMBrzjrJX",
+					Satoshis: 2000,
+				},
+			},
+		}
+
+		// Create the transaction
+		tx, err := SendOrdinals(config)
+
+		// We expect the transaction to be created successfully
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify the transaction structure
+		assert.Equal(t, 2, len(tx.Inputs), "Should have 2 inputs: payment and ordinal")
+		assert.Equal(t, 4, len(tx.Outputs), "Should have 4 outputs: destination, two payments, and change")
+
+		// Verify correct payment amounts
+		foundPayment1 := false
+		foundPayment2 := false
+
+		for _, output := range tx.Outputs {
+			if output.Satoshis == 1000 {
+				foundPayment1 = true
+			}
+			if output.Satoshis == 2000 {
+				foundPayment2 = true
+			}
+		}
+
+		assert.True(t, foundPayment1, "Should have an output with 1000 satoshis")
+		assert.True(t, foundPayment2, "Should have an output with 2000 satoshis")
+	})
+
+	// Test Case 4: enforceUniformSend=true with multiple ordinals
+	t.Run("enforceUniformSend=true with multiple ordinals", func(t *testing.T) {
+		// Create a test configuration
+		config := &SendOrdinalsConfig{
+			PaymentUtxos: []*Utxo{paymentUtxo},
+			Ordinals:     []*NftUtxo{ordinalUtxo1, ordinalUtxo2},
+			PaymentPk:    paymentPk,
+			OrdPk:        ordPk,
+			Destinations: []*Destination{
+				{
+					Address: "1BitcoinEaterAddressDontSendf59kuE",
+				},
+				{
+					Address: "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+				},
+			},
+			ChangeAddress:      "1BitcoinEaterAddressDontSendf59kuE",
+			EnforceUniformSend: true, // Enforce 1:1 mapping
+		}
+
+		// Create the transaction
+		tx, err := SendOrdinals(config)
+
+		// We expect the transaction to be created successfully
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify the transaction structure
+		assert.Equal(t, 3, len(tx.Inputs), "Should have 3 inputs: payment and 2 ordinals")
+		assert.Equal(t, 3, len(tx.Outputs), "Should have 3 outputs: 2 destinations and change")
+	})
+
+	// Test Case 5: enforceUniformSend=false with mismatched counts
+	t.Run("enforceUniformSend=false with mismatched counts", func(t *testing.T) {
+		// Create a test configuration with more ordinals than destinations
+		config := &SendOrdinalsConfig{
+			PaymentUtxos: []*Utxo{paymentUtxo},
+			Ordinals:     []*NftUtxo{ordinalUtxo1, ordinalUtxo2},
+			PaymentPk:    paymentPk,
+			OrdPk:        ordPk,
+			Destinations: []*Destination{
+				{
+					Address: "1BitcoinEaterAddressDontSendf59kuE",
+				},
+			},
+			ChangeAddress:      "1BitcoinEaterAddressDontSendf59kuE",
+			EnforceUniformSend: false, // Allow mismatch
+		}
+
+		// Create the transaction
+		tx, err := SendOrdinals(config)
+
+		// We expect the transaction to be created successfully despite the mismatch
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify the transaction structure
+		assert.Equal(t, 3, len(tx.Inputs), "Should have 3 inputs: payment and 2 ordinals")
+		assert.GreaterOrEqual(t, len(tx.Outputs), 2, "Should have at least 2 outputs: destination and change")
+	})
+
+	// Test Case 6: Error case - enforceUniformSend=true with mismatched counts
+	t.Run("Error: enforceUniformSend=true with mismatched counts", func(t *testing.T) {
+		// Create a test configuration with more ordinals than destinations
+		config := &SendOrdinalsConfig{
+			PaymentUtxos: []*Utxo{paymentUtxo},
+			Ordinals:     []*NftUtxo{ordinalUtxo1, ordinalUtxo2},
+			PaymentPk:    paymentPk,
+			OrdPk:        ordPk,
+			Destinations: []*Destination{
+				{
+					Address: "1BitcoinEaterAddressDontSendf59kuE",
+				},
+			},
+			ChangeAddress:      "1BitcoinEaterAddressDontSendf59kuE",
+			EnforceUniformSend: true, // Require 1:1 mapping, which should fail
+		}
+
+		// Create the transaction - should fail
+		tx, err := SendOrdinals(config)
+
+		// We expect an error due to the mismatch when enforceUniformSend is true
+		assert.Error(t, err)
+		assert.Nil(t, tx)
+		assert.Contains(t, err.Error(), "number of destinations", "Error should indicate a mismatch between ordinals and destinations")
+	})
 }
 
 func TestSendUtxos(t *testing.T) {
@@ -307,7 +650,7 @@ func TestDeployBsv21Token(t *testing.T) {
 	})
 }
 
-func TestTransferOrdToken(t *testing.T) {
+func TestTransferOrdTokens(t *testing.T) {
 	// Create private keys
 	paymentPk, err := ec.NewPrivateKey()
 	assert.NoError(t, err)
@@ -355,7 +698,7 @@ func TestTransferOrdToken(t *testing.T) {
 	}
 
 	// Create the transaction
-	tx, err := TransferOrdToken(config)
+	tx, err := TransferOrdTokens(config)
 
 	// We expect an error because the test utxos are invalid
 	assert.Error(t, err)
@@ -518,14 +861,6 @@ func TestCancelOrdListings(t *testing.T) {
 	assert.Equal(t, uint64(1), tx.Outputs[0].Satoshis, "Ordinal output should be 1 satoshi")
 }
 
-func TestHelpers(t *testing.T) {
-	// Test AddressFromString
-	addr, err := AddressFromString("1BitcoinEaterAddressDontSendf59kuE")
-	assert.NoError(t, err)
-	assert.NotNil(t, addr)
-	assert.Equal(t, "1BitcoinEaterAddressDontSendf59kuE", addr.AddressString)
-}
-
 func TestTokenSplitConfig(t *testing.T) {
 	// Create private keys
 	paymentPk, err := ec.NewPrivateKey()
@@ -597,7 +932,7 @@ func TestTokenSplitConfig(t *testing.T) {
 
 		// Verify the transaction will fail due to invalid UTXO
 		// but token split logic should still run correctly
-		_, err := TransferOrdToken(cfg)
+		_, err := TransferOrdTokens(cfg)
 		assert.Error(t, err)
 	})
 
@@ -631,7 +966,7 @@ func TestTokenSplitConfig(t *testing.T) {
 
 		// Verify the transaction will fail due to invalid UTXO
 		// but token split logic should still run correctly
-		_, err := TransferOrdToken(cfg)
+		_, err := TransferOrdTokens(cfg)
 		assert.Error(t, err)
 	})
 
@@ -663,7 +998,7 @@ func TestTokenSplitConfig(t *testing.T) {
 
 		// Verify the transaction will fail due to invalid UTXO
 		// but token split logic should still run correctly
-		_, err := TransferOrdToken(cfg)
+		_, err := TransferOrdTokens(cfg)
 		assert.Error(t, err)
 	})
 
@@ -698,7 +1033,7 @@ func TestTokenSplitConfig(t *testing.T) {
 
 		// Verify the transaction will fail due to invalid UTXO
 		// but token split logic should still run correctly
-		_, err := TransferOrdToken(cfg)
+		_, err := TransferOrdTokens(cfg)
 		assert.Error(t, err)
 	})
 
@@ -725,7 +1060,7 @@ func TestTokenSplitConfig(t *testing.T) {
 
 		// Verify the transaction will fail due to invalid UTXO
 		// but token split logic should still run correctly
-		_, err := TransferOrdToken(cfg)
+		_, err := TransferOrdTokens(cfg)
 		assert.Error(t, err)
 	})
 
@@ -771,7 +1106,7 @@ func TestTokenSplitConfig(t *testing.T) {
 
 		// Verify the transaction will fail due to invalid UTXO
 		// but token split logic should still run correctly
-		_, err := TransferOrdToken(cfg)
+		_, err := TransferOrdTokens(cfg)
 		assert.Error(t, err)
 	})
 }
@@ -998,7 +1333,201 @@ func TestTokenDistributionOmitMetadata(t *testing.T) {
 
 		// Verify the transaction will fail due to invalid UTXO
 		// but OmitMetadata flag should be properly processed
-		_, err := TransferOrdToken(cfg)
+		_, err := TransferOrdTokens(cfg)
 		assert.Error(t, err)
+	})
+}
+
+// TestIntegrationWorkflow tests a complete workflow of creating and then sending an ordinal with re-inscription
+func TestIntegrationWorkflow(t *testing.T) {
+	// Create private keys
+	paymentPk, err := ec.NewPrivateKey()
+	assert.NoError(t, err)
+
+	// Get the payment address
+	paymentAddr, err := script.NewAddressFromPublicKey(paymentPk.PubKey(), true)
+	assert.NoError(t, err)
+	address := paymentAddr.AddressString
+
+	// Test case: Create an inscription, then send it to a new address, change the metadata
+	t.Run("create and transfer inscription", func(t *testing.T) {
+		// STEP 1: Create an ordinal inscription
+		// -------------------------------------
+		createConfig := &CreateOrdinalsConfig{
+			Utxos: []*Utxo{
+				{
+					TxID:         "0000000000000000000000000000000000000000000000000000000000000003",
+					Vout:         0,
+					ScriptPubKey: "76a914b437a081c28a178b9ce5e2a0e694d45d1d5e2c0388ac",
+					Satoshis:     10000,
+				},
+			},
+			Destinations: []*Destination{
+				{
+					Address: address,
+					Inscription: &inscription.Inscription{
+						File: inscription.File{
+							Content: []byte("Initial inscription content"),
+							Type:    "text/plain",
+						},
+						Bitcom: map[string][]byte{
+							"app":        []byte("integration-test"),
+							"created_at": []byte("2023-05-01"),
+						},
+					},
+				},
+			},
+			PaymentPk:     paymentPk,
+			ChangeAddress: address,
+		}
+
+		// Create the transaction
+		tx, err := CreateOrdinals(createConfig)
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify outputs: at least the inscription output and change output
+		assert.GreaterOrEqual(t, len(tx.Outputs), 2, "Should have at least 2 outputs")
+
+		// STEP 2: Send the inscription to a new address with updated metadata
+		// -------------------------------------------------------------------
+		sendConfig := &SendOrdinalsConfig{
+			PaymentUtxos: []*Utxo{
+				{
+					TxID:         "0000000000000000000000000000000000000000000000000000000000000004",
+					Vout:         0,
+					ScriptPubKey: "76a914b437a081c28a178b9ce5e2a0e694d45d1d5e2c0388ac",
+					Satoshis:     10000,
+				},
+			},
+			Ordinals: []*NftUtxo{
+				{
+					Utxo: Utxo{
+						TxID:         tx.TxID().String(),
+						Vout:         0, // Usually the first output is the inscription
+						ScriptPubKey: tx.Outputs[0].LockingScript.String(),
+						Satoshis:     1,
+					},
+				},
+			},
+			PaymentPk: paymentPk,
+			OrdPk:     paymentPk, // We own the original inscription
+			Destinations: []*Destination{
+				{
+					Address: "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa", // Different destination address
+					Inscription: &inscription.Inscription{
+						File: inscription.File{
+							Content: []byte("Re-inscription content"),
+							Type:    "text/plain",
+						},
+						Bitcom: map[string][]byte{
+							"app":        []byte("integration-test"),
+							"updated_at": []byte("2023-05-02"),
+						},
+					},
+				},
+			},
+			ChangeAddress: address,
+		}
+
+		// Send the ordinal
+		tx2, err := SendOrdinals(sendConfig)
+		assert.NoError(t, err)
+		assert.NotNil(t, tx2)
+
+		// Verify outputs: at least the inscription output and change output
+		assert.GreaterOrEqual(t, len(tx2.Outputs), 2, "Should have at least 2 outputs")
+	})
+
+	// Test case: Create an inscription with omitMetadata, then send it
+	t.Run("create with omitMetadata and transfer", func(t *testing.T) {
+		// STEP 1: Create an ordinal inscription with omitMetadata
+		createConfig := &CreateOrdinalsConfig{
+			Utxos: []*Utxo{
+				{
+					TxID:         "0000000000000000000000000000000000000000000000000000000000000003",
+					Vout:         0,
+					ScriptPubKey: "76a914b437a081c28a178b9ce5e2a0e694d45d1d5e2c0388ac",
+					Satoshis:     10000,
+				},
+			},
+			Destinations: []*Destination{
+				{
+					Address: address,
+					Inscription: &inscription.Inscription{
+						File: inscription.File{
+							Content: []byte("Initial inscription content"),
+							Type:    "text/plain",
+						},
+						Bitcom: map[string][]byte{
+							"app": []byte("omit-metadata-test"),
+						},
+					},
+				},
+			},
+			PaymentPk:     paymentPk,
+			ChangeAddress: address,
+		}
+
+		// Set omitMetadata to true
+		createConfig.Destinations[0].SetOmitMetadata(true)
+
+		// Create the transaction
+		tx, err := CreateOrdinals(createConfig)
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		// Verify outputs: at least the inscription output and change output
+		assert.GreaterOrEqual(t, len(tx.Outputs), 2, "Should have at least 2 outputs")
+
+		// STEP 2: Send the inscription to a new address, still with omitMetadata
+		sendConfig := &SendOrdinalsConfig{
+			PaymentUtxos: []*Utxo{
+				{
+					TxID:         "0000000000000000000000000000000000000000000000000000000000000004",
+					Vout:         0,
+					ScriptPubKey: "76a914b437a081c28a178b9ce5e2a0e694d45d1d5e2c0388ac",
+					Satoshis:     10000,
+				},
+			},
+			Ordinals: []*NftUtxo{
+				{
+					Utxo: Utxo{
+						TxID:         tx.TxID().String(),
+						Vout:         0, // Usually the first output is the inscription
+						ScriptPubKey: tx.Outputs[0].LockingScript.String(),
+						Satoshis:     1,
+					},
+				},
+			},
+			PaymentPk: paymentPk,
+			OrdPk:     paymentPk, // We own the original inscription
+			Destinations: []*Destination{
+				{
+					Address: "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+					Inscription: &inscription.Inscription{
+						File: inscription.File{
+							Content: []byte("Metadata omitted content"),
+							Type:    "text/plain",
+						},
+						Bitcom: map[string][]byte{
+							"app": []byte("this metadata should be omitted"),
+						},
+					},
+				},
+			},
+			ChangeAddress: address,
+		}
+
+		// Set omitMetadata to true
+		sendConfig.Destinations[0].SetOmitMetadata(true)
+
+		// Send the ordinal
+		tx2, err := SendOrdinals(sendConfig)
+		assert.NoError(t, err)
+		assert.NotNil(t, tx2)
+
+		// Verify outputs: at least the inscription output and change output
+		assert.GreaterOrEqual(t, len(tx2.Outputs), 2, "Should have at least 2 outputs")
 	})
 }

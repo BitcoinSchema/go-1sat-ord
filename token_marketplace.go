@@ -20,6 +20,23 @@ import (
 // 5. Calculates and includes the transaction fee
 // 6. Returns change to the specified address
 func PurchaseOrdTokenListing(config *PurchaseOrdTokenListingConfig) (*transaction.Transaction, error) {
+	// Validate inputs
+	if config.PaymentPk == nil {
+		return nil, fmt.Errorf("private key is required to sign the transaction")
+	}
+
+	if config.ListingUtxo == nil {
+		return nil, fmt.Errorf("listing UTXO is required")
+	}
+
+	if config.OrdAddress == "" {
+		return nil, fmt.Errorf("destination address is required")
+	}
+
+	if config.ChangeAddress == "" && config.PaymentPk == nil {
+		return nil, fmt.Errorf("either changeAddress or paymentPk is required")
+	}
+
 	// Create a new transaction
 	tx := transaction.NewTransaction()
 
@@ -119,10 +136,11 @@ func PurchaseOrdTokenListing(config *PurchaseOrdTokenListingConfig) (*transactio
 	}
 
 	// Add payment inputs
+	totalIn := uint64(0)
 	for _, utxo := range config.Utxos {
 		unlocker, err := p2pkh.Unlock(config.PaymentPk, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create payment unlocker: %w", err)
+			return nil, fmt.Errorf("private key is required to sign the payment: %w", err)
 		}
 
 		err = tx.AddInputFrom(
@@ -135,6 +153,8 @@ func PurchaseOrdTokenListing(config *PurchaseOrdTokenListingConfig) (*transactio
 		if err != nil {
 			return nil, fmt.Errorf("failed to add payment input: %w", err)
 		}
+
+		totalIn += utxo.Satoshis
 	}
 
 	// Add change output if needed
@@ -168,6 +188,9 @@ func PurchaseOrdTokenListing(config *PurchaseOrdTokenListingConfig) (*transactio
 
 	err = tx.Fee(feeModel, transaction.ChangeDistributionEqual)
 	if err != nil {
+		if err.Error() == "insufficient funds for fee" {
+			return nil, fmt.Errorf("not enough funds to purchase token listing. Total sats in: %d", totalIn)
+		}
 		return nil, fmt.Errorf("failed to calculate fee: %w", err)
 	}
 
@@ -187,14 +210,32 @@ func PurchaseOrdTokenListing(config *PurchaseOrdTokenListingConfig) (*transactio
 // 3. Calculates and includes the transaction fee
 // 4. Returns change to the specified address
 func CreateOrdTokenListings(config *CreateOrdTokenListingsConfig) (*transaction.Transaction, error) {
+	// Validate inputs
+	if config.PaymentPk == nil {
+		return nil, fmt.Errorf("payment private key is required to sign the transaction")
+	}
+
+	if config.OrdPk == nil {
+		return nil, fmt.Errorf("token private key is required to sign the transaction")
+	}
+
+	if len(config.Listings) == 0 {
+		return nil, fmt.Errorf("at least one listing is required")
+	}
+
+	if config.ChangeAddress == "" && config.PaymentPk == nil {
+		return nil, fmt.Errorf("either changeAddress or paymentPk is required")
+	}
+
 	// Create a new transaction
 	tx := transaction.NewTransaction()
 
 	// Add payment inputs
+	totalIn := uint64(0)
 	for _, utxo := range config.Utxos {
 		unlocker, err := p2pkh.Unlock(config.PaymentPk, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create payment unlocker: %w", err)
+			return nil, fmt.Errorf("private key is required to sign the payment: %w", err)
 		}
 
 		err = tx.AddInputFrom(
@@ -207,16 +248,31 @@ func CreateOrdTokenListings(config *CreateOrdTokenListingsConfig) (*transaction.
 		if err != nil {
 			return nil, fmt.Errorf("failed to add payment input: %w", err)
 		}
+
+		totalIn += utxo.Satoshis
 	}
 
 	// Add token inputs and create locked outputs for each listing
 	for _, listing := range config.Listings {
+		// Validate listing data
+		if listing.ListingUtxo == nil {
+			return nil, fmt.Errorf("token UTXO is required for listing")
+		}
+
+		if listing.OrdAddress == "" {
+			return nil, fmt.Errorf("token owner address is required for listing")
+		}
+
+		if listing.PayAddress == "" {
+			return nil, fmt.Errorf("payment address is required for listing")
+		}
+
 		// Add the token input
 		tokenUtxo := listing.ListingUtxo
 
 		unlocker, err := p2pkh.Unlock(config.OrdPk, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create token unlocker: %w", err)
+			return nil, fmt.Errorf("private key is required to sign the token input: %w", err)
 		}
 
 		err = tx.AddInputFrom(
@@ -307,6 +363,9 @@ func CreateOrdTokenListings(config *CreateOrdTokenListingsConfig) (*transaction.
 
 	err := tx.Fee(feeModel, transaction.ChangeDistributionEqual)
 	if err != nil {
+		if err.Error() == "insufficient funds for fee" {
+			return nil, fmt.Errorf("not enough funds to create token listings. Total sats in: %d", totalIn)
+		}
 		return nil, fmt.Errorf("failed to calculate fee: %w", err)
 	}
 
@@ -327,14 +386,32 @@ func CreateOrdTokenListings(config *CreateOrdTokenListingsConfig) (*transaction.
 // 3. Calculates and includes the transaction fee
 // 4. Returns change to the specified address
 func CancelOrdTokenListings(config *CancelOrdTokenListingsConfig) (*transaction.Transaction, error) {
+	// Validate inputs
+	if config.PaymentPk == nil {
+		return nil, fmt.Errorf("payment private key is required to sign the transaction")
+	}
+
+	if config.OrdPk == nil {
+		return nil, fmt.Errorf("token private key is required to sign the transaction")
+	}
+
+	if len(config.ListingUtxos) == 0 {
+		return nil, fmt.Errorf("at least one listing UTXO is required")
+	}
+
+	if config.ChangeAddress == "" && config.PaymentPk == nil {
+		return nil, fmt.Errorf("either changeAddress or paymentPk is required")
+	}
+
 	// Create a new transaction
 	tx := transaction.NewTransaction()
 
 	// Add payment inputs (for fees)
+	totalIn := uint64(0)
 	for _, utxo := range config.Utxos {
 		unlocker, err := p2pkh.Unlock(config.PaymentPk, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create payment unlocker: %w", err)
+			return nil, fmt.Errorf("private key is required to sign the payment: %w", err)
 		}
 
 		err = tx.AddInputFrom(
@@ -347,15 +424,26 @@ func CancelOrdTokenListings(config *CancelOrdTokenListingsConfig) (*transaction.
 		if err != nil {
 			return nil, fmt.Errorf("failed to add payment input: %w", err)
 		}
+
+		totalIn += utxo.Satoshis
 	}
 
 	// Add listing inputs and create outputs for each token
 	for _, listingUtxo := range config.ListingUtxos {
+		// Validate listing UTXO
+		if listingUtxo.Protocol == "" {
+			return nil, fmt.Errorf("token protocol is required for listing UTXO")
+		}
+
+		if listingUtxo.TokenID == "" {
+			return nil, fmt.Errorf("token ID is required for listing UTXO")
+		}
+
 		// TODO: In a real implementation, we would use OrdLock.Unlock
 		// For now, we'll use a placeholder P2PKH unlocker
 		unlocker, err := p2pkh.Unlock(config.OrdPk, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create listing unlocker: %w", err)
+			return nil, fmt.Errorf("private key is required to sign the listing: %w", err)
 		}
 
 		err = tx.AddInputFrom(
@@ -439,6 +527,9 @@ func CancelOrdTokenListings(config *CancelOrdTokenListingsConfig) (*transaction.
 
 	err := tx.Fee(feeModel, transaction.ChangeDistributionEqual)
 	if err != nil {
+		if err.Error() == "insufficient funds for fee" {
+			return nil, fmt.Errorf("not enough funds to cancel token listings. Total sats in: %d", totalIn)
+		}
 		return nil, fmt.Errorf("failed to calculate fee: %w", err)
 	}
 

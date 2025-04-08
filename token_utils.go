@@ -1,6 +1,7 @@
 package ordinals
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"sort"
@@ -39,15 +40,34 @@ type TokenSelectionResult struct {
 }
 
 // ToToken converts a token amount from raw format to display format
+// It divides the raw amount by 10^decimals to get the display format
 func ToToken(amount uint64, decimals uint8) float64 {
+	// For simple number division, we just use the standard math package
+	// Unlike the TypeScript implementation, Go doesn't support variable return types
+	// and doesn't have a built-in bigint type for arbitrary precision
 	divisor := math.Pow10(int(decimals))
 	return float64(amount) / divisor
 }
 
 // FromToken converts a token amount from display format to raw format
+// It multiplies the display amount by 10^decimals to get the raw format
 func FromToken(amount float64, decimals uint8) uint64 {
+	// Validate input
+	if amount < 0 {
+		// Similar to TypeScript, we should handle negative values, but we're simplifying
+		// by not supporting them directly. Applications can handle sign logic.
+		panic("FromToken cannot handle negative values directly")
+	}
+
+	// Check for potential overflow
+	maxSafeValue := math.Pow(2, 64) / math.Pow10(int(decimals))
+	if amount > maxSafeValue {
+		panic(fmt.Sprintf("Value too large: %f exceeds maximum safe value of %f", amount, maxSafeValue))
+	}
+
 	multiplier := math.Pow10(int(decimals))
-	return uint64(amount * multiplier)
+	// Round to nearest integer to handle floating point precision issues
+	return uint64(math.Round(amount * multiplier))
 }
 
 // SelectTokenUtxos selects token UTXOs based on the required amount and specified strategies

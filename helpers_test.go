@@ -179,3 +179,21 @@ func TestOneSatBroadcaster(t *testing.T) {
 	broadcaster := OneSatBroadcaster()
 	assert.NotNil(t, broadcaster)
 }
+
+func TestHelpers(t *testing.T) {
+	// Test fetch utxo (mocked)
+	utxo := &Utxo{
+		TxID: "0000000000000000000000000000000000000000000000000000000000000003",
+		Vout: 0,
+	}
+	err := fetchUtxo(utxo)
+	assert.NoError(t, err)
+
+	// Test fetch utxo with error (mocked)
+	utxo = &Utxo{
+		TxID: "invalid_txid",
+		Vout: 0,
+	}
+	err = fetchUtxo(utxo)
+	assert.Error(t, err)
+}

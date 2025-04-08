@@ -12,6 +12,19 @@ import (
 
 // DeployBsv21Token deploys a new BSV21 token
 func DeployBsv21Token(config *DeployBsv21TokenConfig) (*transaction.Transaction, error) {
+	// Validate input params
+	if config.Symbol == "" {
+		return nil, fmt.Errorf("token symbol is required")
+	}
+
+	if config.InitialDistribution == nil {
+		return nil, fmt.Errorf("initial distribution is required")
+	}
+
+	if config.InitialDistribution.Tokens <= 0 {
+		return nil, fmt.Errorf("initial distribution amount must be greater than zero")
+	}
+
 	// Create a new transaction
 	tx := transaction.NewTransaction()
 
@@ -19,7 +32,7 @@ func DeployBsv21Token(config *DeployBsv21TokenConfig) (*transaction.Transaction,
 	for _, utxo := range config.Utxos {
 		unlocker, err := p2pkh.Unlock(config.PaymentPk, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create unlocker: %w", err)
+			return nil, fmt.Errorf("private key is required to sign the transaction: %w", err)
 		}
 
 		err = tx.AddInputFrom(
@@ -72,6 +85,11 @@ func DeployBsv21Token(config *DeployBsv21TokenConfig) (*transaction.Transaction,
 		Satoshis:      1, // 1 sat for ordinals
 	})
 
+	// Ensure we have a change address
+	if config.ChangeAddress == "" && config.PaymentPk == nil {
+		return nil, fmt.Errorf("either changeAddress or paymentPk is required")
+	}
+
 	// Add change output if needed
 	if config.ChangeAddress != "" {
 		changeAddr, err := script.NewAddressFromString(config.ChangeAddress)
@@ -90,6 +108,12 @@ func DeployBsv21Token(config *DeployBsv21TokenConfig) (*transaction.Transaction,
 		})
 	}
 
+	// Calculate total inputs for funds checking
+	totalIn := uint64(0)
+	for _, utxo := range config.Utxos {
+		totalIn += utxo.Satoshis
+	}
+
 	// Set fee rate using SatsPerKb if provided, otherwise use the default value
 	feeRate := config.SatsPerKb
 	if feeRate == 0 {
@@ -103,6 +127,9 @@ func DeployBsv21Token(config *DeployBsv21TokenConfig) (*transaction.Transaction,
 
 	err = tx.Fee(feeModel, transaction.ChangeDistributionEqual)
 	if err != nil {
+		if err.Error() == "insufficient funds for fee" {
+			return nil, fmt.Errorf("not enough funds to deploy token. Total sats in: %d", totalIn)
+		}
 		return nil, fmt.Errorf("failed to calculate fee: %w", err)
 	}
 
@@ -115,41 +142,30 @@ func DeployBsv21Token(config *DeployBsv21TokenConfig) (*transaction.Transaction,
 	return tx, nil
 }
 
-// TransferOrdToken transfers BSV21 tokens
-func TransferOrdToken(config *TransferBsv21TokenConfig) (*transaction.Transaction, error) {
+// TransferOrdTokens transfers BSV21 tokens
+// This function is renamed to match the TypeScript version (transferOrdTokens)
+func TransferOrdTokens(config *TransferBsv21TokenConfig) (*transaction.Transaction, error) {
 	// Check protocol type
 	if config.Protocol != TokenTypeBSV21 {
-		return nil, fmt.Errorf("unsupported token protocol: %s", config.Protocol)
+		return nil, fmt.Errorf("invalid protocol: expected %s, got %s", TokenTypeBSV21, config.Protocol)
+	}
+
+	// Ensure input tokens match the expected tokenID
+	for _, token := range config.InputTokens {
+		if token.TokenID != config.TokenID {
+			return nil, fmt.Errorf("input tokens do not match the provided tokenID")
+		}
 	}
 
 	// Create a new transaction
 	tx := transaction.NewTransaction()
-
-	// Add payment inputs
-	for _, utxo := range config.Utxos {
-		unlocker, err := p2pkh.Unlock(config.PaymentPk, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create payment unlocker: %w", err)
-		}
-
-		err = tx.AddInputFrom(
-			utxo.TxID,
-			utxo.Vout,
-			utxo.ScriptPubKey,
-			utxo.Satoshis,
-			unlocker,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to add payment input: %w", err)
-		}
-	}
 
 	// Add token inputs
 	var totalTokens uint64
 	for _, tokenUtxo := range config.InputTokens {
 		unlocker, err := p2pkh.Unlock(config.OrdPk, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create token unlocker: %w", err)
+			return nil, fmt.Errorf("private key required for token input: %w", err)
 		}
 
 		err = tx.AddInputFrom(
@@ -185,68 +201,86 @@ func TransferOrdToken(config *TransferBsv21TokenConfig) (*transaction.Transactio
 			return nil, fmt.Errorf("failed to create p2pkh script: %w", err)
 		}
 
-		// Create token transfer
-		token := &bsv21.Bsv21{
-			Op:  string(bsv21.OpTransfer),
-			Id:  config.TokenID,
-			Amt: tokenAmount,
+		var lockingScript *script.Script
+
+		if dist.OmitMetadata {
+			// If OmitMetadata is enabled, use the P2PKH script directly without token data
+			lockingScript = p2pkhScript
+		} else {
+			// Create token transfer with metadata (normal case)
+			token := &bsv21.Bsv21{
+				Op:  string(bsv21.OpTransfer),
+				Id:  config.TokenID,
+				Amt: tokenAmount,
+			}
+
+			// Create token script
+			var err error
+			lockingScript, err = token.Lock(p2pkhScript)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create token transfer script: %w", err)
+			}
 		}
 
-		// Create token script
-		// Note: The OmitMetadata flag is currently not used as the bsv21 library
-		// doesn't support creating scripts without the token data.
-		// Future enhancement: When the library supports it, this would create
-		// a minimal script when dist.OmitMetadata is true.
-		tokenScript, err := token.Lock(p2pkhScript)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create token script: %w", err)
-		}
-
-		// Add token output
+		// Add the token output to the transaction
 		tx.AddOutput(&transaction.TransactionOutput{
-			LockingScript: tokenScript,
+			LockingScript: lockingScript,
 			Satoshis:      1, // 1 sat for ordinals
 		})
 	}
 
-	// Handle remaining tokens as change
-	remainingTokens := totalTokens - distributedTokens
+	// Check if we have enough tokens
+	if distributedTokens > totalTokens {
+		return nil, fmt.Errorf("not enough tokens to satisfy the transfer amount")
+	}
 
-	// Only process change if not burning tokens and there are tokens remaining
+	// Handle remaining tokens if not burning
+	remainingTokens := totalTokens - distributedTokens
 	if remainingTokens > 0 && !config.Burn {
-		var err error
-		// Check token input mode - if "needed", we might not need to consume all inputs
-		if config.TokenInputMode == TokenInputModeNeeded && distributedTokens < totalTokens {
-			// Create split outputs if configured
+		// Ensure we have a change address
+		if config.ChangeAddress == "" && config.PaymentPk == nil {
+			return nil, fmt.Errorf("ordPk or changeAddress required for token change")
+		}
+
+		// Handle token change outputs based on input mode and split config
+		if config.TokenInputMode == TokenInputModeAll || config.TokenInputMode == "" {
+			// If in "all" mode or not specified, we must handle all change
 			if config.SplitConfig != nil && config.SplitConfig.Outputs > 1 {
-				// Add split token outputs
-				err = createSplitTokenOutputs(tx, config, remainingTokens)
+				err := createSplitTokenOutputs(tx, config, remainingTokens)
 				if err != nil {
 					return nil, err
 				}
 			} else {
-				// Create a single change output
-				err = createSingleTokenChangeOutput(tx, config, remainingTokens)
+				err := createSingleTokenChangeOutput(tx, config, remainingTokens)
 				if err != nil {
 					return nil, err
 				}
 			}
-		} else if config.TokenInputMode == TokenInputModeAll || config.TokenInputMode == "" {
-			// Default is to use all inputs
-			// Create split outputs if configured
-			if config.SplitConfig != nil && config.SplitConfig.Outputs > 1 {
-				// Add split token outputs
-				err = createSplitTokenOutputs(tx, config, remainingTokens)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				// Create a single change output
-				err = createSingleTokenChangeOutput(tx, config, remainingTokens)
-				if err != nil {
-					return nil, err
-				}
+		} else if config.TokenInputMode == TokenInputModeNeeded {
+			// In "needed" mode, we only use what's required, so add a single change output
+			err := createSingleTokenChangeOutput(tx, config, remainingTokens)
+			if err != nil {
+				return nil, err
 			}
+		}
+	}
+
+	// Add payment inputs
+	for _, utxo := range config.Utxos {
+		unlocker, err := p2pkh.Unlock(config.PaymentPk, nil)
+		if err != nil {
+			return nil, fmt.Errorf("private key required for payment utxo: %w", err)
+		}
+
+		err = tx.AddInputFrom(
+			utxo.TxID,
+			utxo.Vout,
+			utxo.ScriptPubKey,
+			utxo.Satoshis,
+			unlocker,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add payment input: %w", err)
 		}
 	}
 
@@ -268,6 +302,12 @@ func TransferOrdToken(config *TransferBsv21TokenConfig) (*transaction.Transactio
 		})
 	}
 
+	// Calculate total inputs for funds checking
+	totalIn := uint64(0)
+	for _, utxo := range config.Utxos {
+		totalIn += utxo.Satoshis
+	}
+
 	// Set fee rate using SatsPerKb if provided, otherwise use the default value
 	feeRate := config.SatsPerKb
 	if feeRate == 0 {
@@ -281,6 +321,9 @@ func TransferOrdToken(config *TransferBsv21TokenConfig) (*transaction.Transactio
 
 	err := tx.Fee(feeModel, transaction.ChangeDistributionEqual)
 	if err != nil {
+		if err.Error() == "insufficient funds for fee" {
+			return nil, fmt.Errorf("not enough funds to transfer tokens. Total sats in: %d", totalIn)
+		}
 		return nil, fmt.Errorf("failed to calculate fee: %w", err)
 	}
 
@@ -294,8 +337,6 @@ func TransferOrdToken(config *TransferBsv21TokenConfig) (*transaction.Transactio
 }
 
 // createSplitTokenOutputs splits token change into multiple outputs according to config
-// Note: SplitConfig.OmitMetadata is currently just a flag for future enhancement.
-// Current implementation always includes the token data in the script.
 func createSplitTokenOutputs(
 	tx *transaction.Transaction,
 	config *TransferBsv21TokenConfig,
@@ -343,24 +384,30 @@ func createSplitTokenOutputs(
 			outputAmount = tokensLeft
 		}
 
-		// Create token transfer
-		token := &bsv21.Bsv21{
-			Op:  string(bsv21.OpTransfer),
-			Id:  config.TokenID,
-			Amt: outputAmount,
-		}
+		var lockingScript *script.Script
 
-		// Create token script
-		// Note: The OmitMetadata flag is just for future enhancement.
-		// Currently, all token scripts include the token data as an inscription.
-		tokenScript, err := token.Lock(p2pkhScript)
-		if err != nil {
-			return fmt.Errorf("failed to create token script: %w", err)
+		if config.SplitConfig.OmitMetadata {
+			// If OmitMetadata is enabled, use the P2PKH script directly without token data
+			lockingScript = p2pkhScript
+		} else {
+			// Create token transfer with metadata (normal case)
+			token := &bsv21.Bsv21{
+				Op:  string(bsv21.OpTransfer),
+				Id:  config.TokenID,
+				Amt: outputAmount,
+			}
+
+			// Create token script with full metadata
+			var err error
+			lockingScript, err = token.Lock(p2pkhScript)
+			if err != nil {
+				return fmt.Errorf("failed to create token script: %w", err)
+			}
 		}
 
 		// Add token change output
 		tx.AddOutput(&transaction.TransactionOutput{
-			LockingScript: tokenScript,
+			LockingScript: lockingScript,
 			Satoshis:      1, // 1 sat for ordinals
 		})
 
@@ -371,8 +418,6 @@ func createSplitTokenOutputs(
 }
 
 // createSingleTokenChangeOutput creates a single token change output
-// Note: SplitConfig.OmitMetadata is currently just a flag for future enhancement.
-// Current implementation always includes the token data in the script.
 func createSingleTokenChangeOutput(
 	tx *transaction.Transaction,
 	config *TransferBsv21TokenConfig,
@@ -390,24 +435,33 @@ func createSingleTokenChangeOutput(
 		return fmt.Errorf("failed to create p2pkh script: %w", err)
 	}
 
-	// Create token change
-	token := &bsv21.Bsv21{
-		Op:  string(bsv21.OpTransfer),
-		Id:  config.TokenID,
-		Amt: remainingTokens,
-	}
+	var lockingScript *script.Script
 
-	// Create token script
-	// Note: The OmitMetadata flag is just for future enhancement.
-	// Currently, all token scripts include the token data as an inscription.
-	tokenScript, err := token.Lock(p2pkhScript)
-	if err != nil {
-		return fmt.Errorf("failed to create token script: %w", err)
+	// Check if we should omit metadata (when using SplitConfig but just creating 1 output)
+	omitMetadata := config.SplitConfig != nil && config.SplitConfig.OmitMetadata
+
+	if omitMetadata {
+		// If OmitMetadata is enabled, use the P2PKH script directly without token data
+		lockingScript = p2pkhScript
+	} else {
+		// Create token change with metadata (normal case)
+		token := &bsv21.Bsv21{
+			Op:  string(bsv21.OpTransfer),
+			Id:  config.TokenID,
+			Amt: remainingTokens,
+		}
+
+		// Create token script with full metadata
+		var err error
+		lockingScript, err = token.Lock(p2pkhScript)
+		if err != nil {
+			return fmt.Errorf("failed to create token script: %w", err)
+		}
 	}
 
 	// Add token change output
 	tx.AddOutput(&transaction.TransactionOutput{
-		LockingScript: tokenScript,
+		LockingScript: lockingScript,
 		Satoshis:      1, // 1 sat for ordinals
 	})
 

@@ -59,9 +59,6 @@ func TestCreateOrdinals(t *testing.T) {
 							Content: []byte("Hello, world!"),
 							Type:    "text/plain",
 						},
-						Bitcom: map[string][]byte{
-							"test": []byte("value"),
-						},
 					},
 				},
 			},
@@ -92,9 +89,6 @@ func TestCreateOrdinals(t *testing.T) {
 						File: inscription.File{
 							Content: []byte("Hello, world!"),
 							Type:    "text/plain",
-						},
-						Bitcom: map[string][]byte{
-							"test": []byte("value"),
 						},
 					},
 				},
@@ -197,9 +191,6 @@ func TestCreateOrdinals(t *testing.T) {
 							Content: []byte("Inscription 2"),
 							Type:    "text/plain",
 						},
-						Bitcom: map[string][]byte{
-							"test": []byte("metadata for second inscription"),
-						},
 					},
 				},
 			},
@@ -273,9 +264,6 @@ func TestSendOrdinals(t *testing.T) {
 							Content: []byte("Transferred content"),
 							Type:    "text/plain",
 						},
-						Bitcom: map[string][]byte{
-							"test": []byte("metadata value"),
-						},
 					},
 				},
 			},
@@ -309,9 +297,6 @@ func TestSendOrdinals(t *testing.T) {
 						File: inscription.File{
 							Content: []byte("Transferred content"),
 							Type:    "text/plain",
-						},
-						Bitcom: map[string][]byte{
-							"test": []byte("metadata to be omitted"),
 						},
 					},
 				},
@@ -1370,10 +1355,6 @@ func TestIntegrationWorkflow(t *testing.T) {
 							Content: []byte("Initial inscription content"),
 							Type:    "text/plain",
 						},
-						Bitcom: map[string][]byte{
-							"app":        []byte("integration-test"),
-							"created_at": []byte("2023-05-01"),
-						},
 					},
 				},
 			},
@@ -1420,10 +1401,6 @@ func TestIntegrationWorkflow(t *testing.T) {
 							Content: []byte("Re-inscription content"),
 							Type:    "text/plain",
 						},
-						Bitcom: map[string][]byte{
-							"app":        []byte("integration-test"),
-							"updated_at": []byte("2023-05-02"),
-						},
 					},
 				},
 			},
@@ -1458,9 +1435,6 @@ func TestIntegrationWorkflow(t *testing.T) {
 						File: inscription.File{
 							Content: []byte("Initial inscription content"),
 							Type:    "text/plain",
-						},
-						Bitcom: map[string][]byte{
-							"app": []byte("omit-metadata-test"),
 						},
 					},
 				},
@@ -1509,9 +1483,6 @@ func TestIntegrationWorkflow(t *testing.T) {
 						File: inscription.File{
 							Content: []byte("Metadata omitted content"),
 							Type:    "text/plain",
-						},
-						Bitcom: map[string][]byte{
-							"app": []byte("this metadata should be omitted"),
 						},
 					},
 				},

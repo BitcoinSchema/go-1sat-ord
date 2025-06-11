@@ -206,15 +206,7 @@ func ValidateSubTypeData(protocol TokenType, subType string, data *SubTypeData) 
 			result.Valid = false
 			result.Errors = append(result.Errors, "quantity must be positive for collection subtype")
 		}
-		// Validate traits if present
-		if data.Traits != nil && len(data.Traits) > 0 {
-			// In a real implementation, you would validate the structure of traits
-			// For now, we just check that it's not empty
-			if len(data.Traits) == 0 {
-				result.Valid = false
-				result.Errors = append(result.Errors, "traits must not be empty if present")
-			}
-		}
+		// Validate traits if present - validation logic can be added in the future
 
 	case "collectionItem":
 		// Required fields for collection items

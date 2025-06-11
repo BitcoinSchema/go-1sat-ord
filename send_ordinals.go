@@ -22,10 +22,7 @@ func SendOrdinals(config *SendOrdinalsConfig) (*transaction.Transaction, error) 
 	}
 
 	// Set a default for enforceUniformSend if it's not provided
-	enforceUniform := true
-	if config.EnforceUniformSend == false {
-		enforceUniform = false
-	}
+	enforceUniform := config.EnforceUniformSend
 
 	// If enforceUniformSend is true, check that the number of destinations matches the number of ordinals
 	if enforceUniform && (len(config.Destinations) != len(config.Ordinals)) {

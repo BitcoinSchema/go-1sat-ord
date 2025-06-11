@@ -243,7 +243,8 @@ func TransferOrdTokens(config *TransferBsv21TokenConfig) (*transaction.Transacti
 		}
 
 		// Handle token change outputs based on input mode and split config
-		if config.TokenInputMode == TokenInputModeAll || config.TokenInputMode == "" {
+		switch config.TokenInputMode {
+		case TokenInputModeAll, "":
 			// If in "all" mode or not specified, we must handle all change
 			if config.SplitConfig != nil && config.SplitConfig.Outputs > 1 {
 				err := createSplitTokenOutputs(tx, config, remainingTokens)
@@ -256,7 +257,7 @@ func TransferOrdTokens(config *TransferBsv21TokenConfig) (*transaction.Transacti
 					return nil, err
 				}
 			}
-		} else if config.TokenInputMode == TokenInputModeNeeded {
+		case TokenInputModeNeeded:
 			// In "needed" mode, we only use what's required, so add a single change output
 			err := createSingleTokenChangeOutput(tx, config, remainingTokens)
 			if err != nil {
